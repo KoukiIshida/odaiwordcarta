@@ -1,0 +1,1452 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>お題ワードカルタ</title>
+<script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<style>
+:root{
+  --bg:#10192e; --panel:#1b2742; --panel2:#24324f; --text:#f4f6fb; --muted:#9aa6c0;
+  --accent:#ffcc33; --danger:#e5484d; --ok:#3ccf7a; --blue:#1f6fe0;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--text);
+  font-family:"Hiragino Kaku Gothic ProN","Hiragino Sans","Noto Sans JP","Yu Gothic UI","Yu Gothic",Meiryo,sans-serif;
+  -webkit-tap-highlight-color:transparent}
+img{max-width:100%}
+button{font:inherit;cursor:pointer;border:none;border-radius:10px;padding:10px 18px;background:#3a4a6b;color:#fff;font-weight:700}
+button:hover{filter:brightness(1.1)}
+button.primary{background:var(--accent);color:#1a1a1a}
+button.blue{background:var(--blue)}
+button.danger{background:var(--danger)}
+button.ok{background:var(--ok);color:#10301c}
+button.ghost{background:transparent;border:1px solid #4a5a7c;color:var(--text)}
+button.small{padding:6px 12px;font-size:13px;border-radius:8px}
+button.big{font-size:22px;padding:16px 36px}
+button:disabled{background:#4a4f5a !important;color:#9aa0aa !important;cursor:not-allowed;filter:none}
+button.enter-target{outline:3px solid #ffd166;outline-offset:2px;animation:glow 1.6s ease-in-out infinite;position:relative}
+button.enter-target::after{content:"⏎ Enter";position:absolute;top:-10px;right:-8px;background:#ffd166;color:#1a1a1a;font-size:11px;font-weight:900;border-radius:6px;padding:1px 6px}
+@keyframes glow{0%,100%{box-shadow:0 0 0 0 rgba(255,209,102,.0)}50%{box-shadow:0 0 16px 4px rgba(255,209,102,.55)}}
+input[type=text],input[type=number],textarea,select{font:inherit;padding:8px 10px;border-radius:8px;border:1px solid #4a5a7c;background:#0d1526;color:var(--text)}
+input[type=text],textarea{width:100%}
+input[type=number]{width:80px;text-align:right}
+h1,h2,h3{margin:0 0 12px}
+.muted{color:var(--muted)}
+.page{max-width:1100px;margin:0 auto;padding:16px}
+body.host .page{max-width:1400px}
+.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.spacer{flex:1}
+.card{background:var(--panel);border-radius:14px;padding:16px;margin-bottom:14px}
+.note{background:#2c2410;border:1px solid #6b5520;color:#ffe9a8;border-radius:10px;padding:10px 14px;margin-bottom:12px}
+
+/* ===== ヘッダー ===== */
+.topbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:14px}
+.topbar .title{font-size:22px;font-weight:900;letter-spacing:.05em;margin-right:6px}
+.mode-label{background:var(--accent);color:#1a1a1a;border-radius:8px;padding:3px 12px;font-weight:900}
+.chips{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}
+.chip{display:inline-flex;align-items:center;gap:6px;background:var(--panel2);border-radius:999px;padding:5px 12px;font-size:14px;font-weight:700}
+.chip.off{opacity:.5}
+.dot{display:inline-block;width:9px;height:9px;border-radius:50%;background:#666}
+.dot.on{background:var(--ok)}
+.chip .x{background:none;padding:0 2px;color:var(--muted);font-size:14px}
+
+/* ===== ロビー ===== */
+.lobby{display:flex;gap:28px;align-items:center;justify-content:center;flex-wrap:wrap;padding:10px 0}
+.qrbox{display:inline-block;background:#fff;padding:14px;border-radius:12px;line-height:0}
+.url{word-break:break-all;font-size:14px;color:var(--muted);margin-top:8px}
+.plist{display:flex;flex-direction:column;gap:8px;min-width:280px;max-height:420px;overflow:auto}
+.pitem{background:var(--panel2);border-radius:10px;padding:10px 14px;font-size:20px;font-weight:800;display:flex;align-items:center;gap:10px}
+.mode-select{display:flex;gap:12px;justify-content:center;flex-wrap:wrap;margin:14px 0 4px}
+.mode-opt{background:var(--panel2);border:3px solid transparent;border-radius:14px;padding:12px 22px;cursor:pointer;text-align:center;min-width:240px}
+.mode-opt.sel{border-color:var(--accent);background:#2f3a20}
+.mode-opt .t{font-size:22px;font-weight:900}
+.mode-opt .d{font-size:14px;color:var(--muted);margin-top:4px}
+
+/* ===== 五十音カード ===== */
+.board{display:grid;grid-template-columns:repeat(5,1fr);gap:6px}
+.kcard{aspect-ratio:1/1;background:#fff;color:#111;border-radius:8px;display:flex;align-items:center;justify-content:center;
+  font-weight:900;user-select:none;-webkit-user-select:none;box-shadow:0 2px 0 rgba(0,0,0,.35)}
+.kcard.blue{background:var(--blue);color:#fff}
+body.host .board{max-width:330px;gap:5px}
+body.host .kcard{font-size:24px}
+body.host .board.clickable .kcard{cursor:pointer}
+body.sub .kcard{font-size:min(8vw,34px);cursor:pointer;transition:transform .06s}
+body.sub .kcard:active{transform:scale(.92)}
+body.sub .board.locked .kcard{opacity:.55;cursor:not-allowed}
+
+/* ===== 答え配置 ===== */
+.slots{display:flex;flex-wrap:wrap;gap:6px;justify-content:center}
+.slot{width:44px;min-height:54px;border:2px dashed #5a6a8c;border-radius:8px;display:flex;flex-direction:column;align-items:center;justify-content:center;font-weight:900;font-size:26px;line-height:1.05}
+.slot.min{border-color:#8fa3cc}
+.slot.filled{background:#fff;color:#111;border:2px solid #fff}
+.slot.filled.mine{box-shadow:0 0 0 3px var(--accent)}
+.slot .v{font-size:12px;font-weight:800}
+.slot .who{font-size:11px;font-weight:700;color:#556;max-width:100%;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+body.host .slot{width:78px;min-height:96px;font-size:50px;border-radius:12px}
+body.host .slot .v{font-size:20px}
+body.host .slot .who{font-size:13px;width:74px;text-align:center}
+
+/* ===== お題 ===== */
+.topic{border-radius:12px;padding:8px 12px;text-align:center;font-weight:900}
+.topic .lbl{font-size:12px;font-weight:800;opacity:.85}
+.topics{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.topics-head{text-align:center;font-size:12px;font-weight:800;color:var(--muted);margin-bottom:4px}
+.topic.now{background:var(--accent);color:#1a1a1a;font-size:19px;display:flex;flex-direction:column;justify-content:center;word-break:break-all}
+
+body.host .topic.now{font-size:38px;padding:14px}
+body.host .topics{gap:12px}
+body.host .topics-head{font-size:18px;margin-bottom:8px}
+
+body.host .topic .lbl{font-size:16px}
+
+/* ===== ホストのプレイ画面 ===== */
+.play{display:grid;grid-template-columns:1fr 360px;gap:18px;align-items:start}
+.timer{font-size:84px;font-weight:900;font-variant-numeric:tabular-nums;line-height:1;text-align:center}
+.timer.warn{color:var(--danger)}
+.timer-label{font-size:18px;font-weight:800;color:var(--muted);text-align:center}
+.keybar{display:flex;gap:12px;justify-content:center;flex-wrap:wrap;margin:18px 0 8px}
+.keybar button{font-size:20px;padding:14px 22px;min-width:200px}
+.keybar kbd{display:inline-block;background:rgba(0,0,0,.25);border-radius:6px;padding:1px 8px;font-size:14px;margin-left:8px;font-family:inherit}
+.len-info{text-align:center;font-size:18px;font-weight:800;margin:10px 0}
+.blue-count{text-align:center;font-size:20px;font-weight:900;margin:6px 0}
+.blue-count b{font-size:34px;color:#6fb0ff}
+.solved{font-size:15px;line-height:1.7;max-height:200px;overflow:auto}
+
+/* ===== 結果 ===== */
+.result-banner{text-align:center;border-radius:14px;padding:18px;margin-bottom:14px;background:linear-gradient(135deg,#1b4fa8,#2f7de1)}
+.result-banner .big{font-size:64px;font-weight:900;line-height:1.2}
+.rank-name{font-size:72px;font-weight:900;color:var(--accent);text-align:center;margin:16px 0;animation:pop .5s ease-out}
+@keyframes pop{from{transform:scale(.6);opacity:0}to{transform:none;opacity:1}}
+.rank-table td.hit{background:#3a3214;color:var(--accent);font-weight:900}
+
+/* ===== ルール説明 ===== */
+.rule-display{text-align:left;line-height:1.6;font-size:18px}
+.rule-display>div{margin-bottom:6px}
+.rule-red{color:#c0392b;background:#f0f0f0;border:1px solid #ddd;padding:1px 7px;border-radius:6px;-webkit-box-decoration-break:clone;box-decoration-break:clone}
+.rule-normal{color:#222}
+.rule-display, .rule-display *{color:#fff !important}
+.rule-display *:not(.rule-red){background-color:transparent !important}
+.rule-display .rule-red, .rule-display .rule-red *{color:#e5342b !important}
+.rule-display .rule-red{background:#fff !important;border:none}
+.rule-display [style*="font-size"]:not([style*="1.5em"]), .rule-display font[size]{font-size:inherit !important}
+.rule-display h1, .rule-display h2, .rule-display h3, .rule-display h4, .rule-display p{font-size:inherit !important;margin:0;font-weight:inherit}
+.rule-img{border-radius:8px;margin-bottom:10px;cursor:zoom-in;max-height:30vh}
+
+/* ===== 参加者（スマホ） ===== */
+body.sub .page{max-width:520px;padding:0 10px 30px}
+.sub-fixed{position:sticky;top:0;z-index:20;background:var(--bg);padding:8px 0 8px;border-bottom:1px solid #2a3654;margin-bottom:10px}
+.sub-info{display:flex;justify-content:space-between;align-items:center;gap:6px;font-size:13px;font-weight:800;margin-bottom:6px}
+.sub-info .pill{background:var(--panel2);border-radius:999px;padding:3px 10px;white-space:nowrap}
+.sub-info .pill.warn{background:var(--danger)}
+.sub-msg{text-align:center;font-size:13px;font-weight:800;margin-top:6px;min-height:18px;color:var(--accent)}
+.p-center{text-align:center;padding:40px 16px}
+.spinner{width:40px;height:40px;border:4px solid #3a4a6b;border-top-color:var(--accent);border-radius:50%;animation:spin 1s linear infinite;margin:0 auto 16px}
+@keyframes spin{to{transform:rotate(360deg)}}
+.vowel-btns{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-top:12px}
+.vowel-btns button{font-size:26px;padding:14px 0;background:#e3e6ec;color:#111}
+
+/* ===== モーダル・トースト ===== */
+.modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;z-index:100;padding:16px}
+.modal{background:#fff;color:#1d1d1f;border-radius:14px;padding:20px;max-width:460px;width:100%;box-shadow:0 10px 40px rgba(0,0,0,.5)}
+.modal p{margin:6px 0}
+.modal-btns{display:flex;gap:10px;justify-content:flex-end;margin-top:16px;flex-wrap:wrap}
+.modal button{background:#e3e6ec;color:#1d1d1f}
+.modal button.primary{background:var(--accent)}
+.img-modal{position:fixed;inset:0;background:rgba(0,0,0,.85);display:flex;align-items:center;justify-content:center;z-index:150}
+.img-modal img{max-width:92vw;max-height:92vh}
+#toast{position:fixed;left:50%;top:16px;transform:translateX(-50%);z-index:200;pointer-events:none;display:flex;flex-direction:column;gap:8px;align-items:center;width:max-content;max-width:92vw}
+.toast{background:#222c44;color:#fff;border-radius:12px;padding:10px 18px;font-weight:800;box-shadow:0 6px 20px rgba(0,0,0,.4);animation:tin .2s ease-out;text-align:center}
+@keyframes tin{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:none}}
+
+/* ===== 保存オーバーレイ ===== */
+.save-overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);display:none;align-items:center;justify-content:center;z-index:300}
+.save-overlay.active{display:flex}
+.save-box{background:#fff;color:#222;padding:24px 30px;border-radius:12px;text-align:center;min-width:260px}
+.save-box .spinner{border-color:#ddd;border-top-color:#e0a800}
+.save-bar-outer{background:#eee;border-radius:6px;height:10px;margin-top:10px;overflow:hidden}
+.save-bar-inner{background:#e0a800;height:100%;width:0%;transition:width .2s}
+
+/* ===== 管理 ===== */
+table{width:100%;border-collapse:collapse;font-size:14px}
+th,td{padding:8px 10px;border-bottom:1px solid #33415f;text-align:left;vertical-align:top}
+th{color:var(--muted);font-weight:700;white-space:nowrap}
+.table-wrap{overflow-x:auto}
+.tag{display:inline-block;border-radius:6px;padding:2px 8px;font-weight:800;font-size:13px;white-space:nowrap}
+.tag.m5{background:var(--accent);color:#1a1a1a}
+.tag.mc{background:var(--blue);color:#fff}
+.tag.fail{background:var(--danger);color:#fff}
+.stats4{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:12px}
+.stat{background:var(--panel2);border-radius:12px;padding:12px 14px;text-align:center}
+.stat .lbl{font-size:15px;color:var(--muted);font-weight:700}
+.stat .val{font-size:40px;font-weight:900}
+.set-grid{display:grid;grid-template-columns:200px 1fr;gap:12px 16px;align-items:center}
+.set-grid>.lbl{font-weight:800}
+.err-text{color:#ff8a8e;font-weight:700;font-size:14px}
+.sticky-actions{position:sticky;bottom:0;background:var(--bg);padding:10px 0;z-index:5;border-top:1px solid #2a3654}
+.rich-toolbar{display:flex;gap:4px;flex-wrap:wrap;align-items:center;margin-bottom:4px}
+.rich-toolbar button{padding:4px 10px;font-size:13px;border-radius:6px}
+.rule-edit{border:1px solid #ccc;border-radius:6px;min-height:50px;padding:10px;background:#fff;color:#222;text-align:left;line-height:1.6}
+.rule-slide-card{border:1px solid #33415f;border-radius:10px;padding:10px;margin-bottom:10px;background:#16213a}
+.rule-group-block{margin-bottom:10px}
+.thumb{max-width:160px;max-height:120px;display:block;border-radius:6px;cursor:zoom-in}
+.topic-list{max-height:420px;overflow:auto;border:1px solid #33415f;border-radius:10px}
+.topic-list table td{padding:5px 10px;vertical-align:middle}
+.rank-edit input[type=text]{width:220px}
+@media (max-width:900px){ .play{grid-template-columns:1fr} }
+@media (max-width:700px){ .stats4{grid-template-columns:repeat(2,1fr)} .set-grid{grid-template-columns:1fr} }
+</style>
+</head>
+<body>
+<div id="app"></div>
+<div id="modal-root"></div>
+<div id="toast"></div>
+<div class="save-overlay" id="save-overlay"><div class="save-box"><div class="spinner"></div><div id="save-msg">保存中…</div>
+  <div style="font-size:22px;font-weight:900" id="save-pct">0%</div><div class="save-bar-outer"><div class="save-bar-inner" id="save-bar"></div></div></div></div>
+
+<script>
+/* =========================================================
+   お題ワードカルタ
+   ・パラメータなし     … ホスト画面（PC：QR表示・モード選択・進行・正解判定）
+   ・?room=XXXX        … 参加者画面（スマホ：お題2つ・答え配置欄・五十音カード46枚）
+   ・?mode=admin       … 管理ページ（お題登録・制限時間・ランク・ルール説明・履歴）
+   ========================================================= */
+const GAME_TITLE = 'お題ワードカルタ';
+const ROOM_PREFIX = 'odaikaruta-';
+const MIN_PLAYERS = 2;
+const TAPS_PER_PLAYER = 2;   // 1つの答えにつき1人がタップできる回数
+const MIN_LETTERS = 3;
+/* 五十音カード 全46種 */
+const KANA = ['あ','い','う','え','お','か','き','く','け','こ','さ','し','す','せ','そ','た','ち','つ','て','と',
+  'な','に','ぬ','ね','の','は','ひ','ふ','へ','ほ','ま','み','む','め','も','や','ゆ','よ','ら','り','る','れ','ろ','わ','ん','ー'];
+const VOWELS = ['あ','い','う','え','お'];
+/* 初期のお題（管理ページで一括登録・削除できる） */
+const DEFAULT_ITEMS = ['動物','果物','野菜','魚','鳥','虫','花','国の名前','都道府県','色','スポーツ','楽器','乗り物','職業','体の部位',
+  '文房具','飲み物','お菓子','料理','調味料','家具','家電','服','天気','季節のイベント','学校にあるもの','キッチンにあるもの','海にあるもの',
+  '赤いもの','丸いもの','甘いもの','冷たいもの','夏といえば','冬といえば','昔話・童話','お寿司のネタ','コンビニにあるもの','遊園地にあるもの',
+  'お祭りの屋台','雨の日に使うもの','朝ごはん','趣味','おもちゃ','病院にあるもの','お正月といえば','ことわざ・慣用句'];
+
+const LS = { items:'odaikaruta_items', used:'odaikaruta_used', excluded:'odaikaruta_excluded', history:'odaikaruta_history', state:'odaikaruta_host_state', room:'odaikaruta_room', mode:'odaikaruta_mode' };
+const SS_PID='odaikaruta_pid', SS_NAME='odaikaruta_name';
+const DB_NAME='odaikaruta', STORE='kv', DATA_KEY='appData';
+
+const params = new URLSearchParams(location.search);
+const MODE = params.get('mode')==='admin' ? 'admin' : (params.get('room') ? 'sub' : 'host');
+document.body.classList.add(MODE);
+
+/* ---------- 共通ユーティリティ ---------- */
+function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function shuffle(a){ a=a.slice(); for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } return a; }
+function lsGet(k, def){ try{ const v=localStorage.getItem(k); return v==null?def:JSON.parse(v); }catch(e){ return def; } }
+function lsSet(k, v){ try{ localStorage.setItem(k, JSON.stringify(v)); }catch(e){ alert('ブラウザへの保存に失敗しました'); } }
+function fmtDate(t){ const d=new Date(t), p=n=>String(n).padStart(2,'0'); return `${d.getFullYear()}/${p(d.getMonth()+1)}/${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`; }
+function fmtClock(ms){ const s=Math.max(0, Math.floor(ms/1000)); return `${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}`; }
+function fmtDuration(ms){ const s=Math.round(ms/1000), h=Math.floor(s/3600), m=Math.floor(s%3600/60), sec=s%60; return (h?`${h}時間`:'')+`${m}分${String(sec).padStart(2,'0')}秒`; }
+function uid(){ return Math.random().toString(36).slice(2,10)+Date.now().toString(36); }
+function stripHtml(h){ return String(h||'').replace(/<[^>]*>/g,'').replace(/&nbsp;/g,' ').trim(); }
+function toInt(v){ const s=String(v==null?'':v).replace(/[０-９]/g,c=>String.fromCharCode(c.charCodeAt(0)-0xFEE0)).trim(); return /^-?\d+$/.test(s) ? parseInt(s,10) : NaN; }
+function toNum(v){ const s=String(v==null?'':v).replace(/[０-９．]/g,c=>String.fromCharCode(c.charCodeAt(0)-0xFEE0)).trim(); return /^\d+(\.\d+)?$/.test(s) ? parseFloat(s) : NaN; }
+
+function openModal(html, buttons){
+  const wrap=document.createElement('div');
+  wrap.className='modal-bg';
+  wrap.innerHTML=`<div class="modal">${html}<div class="modal-btns"></div></div>`;
+  const close=()=>wrap.remove();
+  (buttons||[{label:'閉じる'}]).forEach(b=>{
+    const el=document.createElement('button');
+    el.textContent=b.label; if(b.cls) el.className=b.cls;
+    el.onclick=()=>{ if(b.onClick && b.onClick()===false) return; close(); };
+    wrap.querySelector('.modal-btns').appendChild(el);
+  });
+  document.getElementById('modal-root').appendChild(wrap);
+  return {el:wrap, close};
+}
+function closeAllModals(){ document.getElementById('modal-root').innerHTML=''; }
+function showToast(text, ms){
+  const el=document.createElement('div'); el.className='toast'; el.textContent=text;
+  document.getElementById('toast').appendChild(el);
+  setTimeout(()=>el.remove(), ms||2400);
+}
+document.addEventListener('click', e=>{
+  if(e.target.tagName==='IMG' && e.target.closest('.rule-img,.thumb')){
+    const m=document.createElement('div'); m.className='img-modal';
+    m.innerHTML=`<img src="${e.target.src}">`; m.onclick=()=>m.remove();
+    document.body.appendChild(m);
+  }
+});
+
+/* スリープ防止 */
+let wakeLock=null;
+async function requestWakeLock(){ try{ wakeLock=await navigator.wakeLock.request('screen'); wakeLock.addEventListener('release',()=>{wakeLock=null;}); }catch(e){} }
+document.addEventListener('visibilitychange', ()=>{ if(document.visibilityState==='visible' && !wakeLock && MODE!=='admin') requestWakeLock(); });
+
+/* ---------- 設定・ランク ---------- */
+/* ランク：min＝5分モードで「この文字数以上」、sec＝クリアまでモードで「この秒数以内」（一番下のランクは sec なし＝それ以上） */
+const DEFAULT_RANKS=[
+  {name:'赤の他人',             min:0,  sec:null},
+  {name:'価値観の合わない知人', min:11, sec:1800},
+  {name:'すれ違っただけの人',   min:19, sec:1500},
+  {name:'挨拶を交わす顔見知り', min:26, sec:1200},
+  {name:'たまに遊ぶ友達',       min:32, sec:1080},
+  {name:'気の置けない相棒',     min:37, sec:960},
+  {name:'無二の親友',           min:41, sec:840},
+  {name:'生涯の伴侶',           min:44, sec:720},
+  {name:'神（完全クリア）',     min:46, sec:600}
+];
+function defaultSettings(){ return { timeLimitSec:300, ranks:JSON.parse(JSON.stringify(DEFAULT_RANKS)) }; }
+const DEFAULT_RULE_SLIDES=[{img:null, groups:[
+  '<b>2つのお題のどちらか</b>に合う言葉を、みんなで五十音カードを1文字ずつタップして作ります。',
+  '1人がタップできるのは、1つの答えにつき<span class="rule-red">2回まで</span>（同じ文字でもOK）。',
+  '言葉は<b>3文字以上・最大「人数×2」文字</b>。',
+  '声を出していいのは、<span class="rule-red">答えが確定したときに最後の文字を置いた人だけ</span>！',
+  '「ず」は「す」、「っ」は「つ」を選んでください。「ー」はどの音（あいうえお）か選びます。',
+  '1人目の想定の答えにならなくても、お題に合っていれば正解！',
+  '正解した言葉のカードは青くなります。たくさんのカードを青くしよう！'
+]}];
+function defaultAppData(){ return { memo:'', ruleSlides:JSON.parse(JSON.stringify(DEFAULT_RULE_SLIDES)), settings:defaultSettings() }; }
+function normalizeSettings(s){
+  const d=defaultSettings(); s=Object.assign({}, d, s||{});
+  const t=toInt(s.timeLimitSec); s.timeLimitSec = isNaN(t)||t<1 ? d.timeLimitSec : t;
+  let r=Array.isArray(s.ranks)?s.ranks:[];
+  r=r.map(x=>({name:String(x.name||'').trim(), min:toInt(x.min), sec:x.sec==null?null:toInt(x.sec)})).filter(x=>x.name && !isNaN(x.min));
+  if(!r.length) r=d.ranks;
+  r.forEach((x,i)=>{ if(i===0 || isNaN(x.sec)) x.sec = i===0 ? null : (isNaN(x.sec)?null:x.sec); });
+  s.ranks=r;
+  return s;
+}
+function mergeAppData(d){
+  const m=Object.assign(defaultAppData(), d||{});
+  if(!Array.isArray(m.ruleSlides)||!m.ruleSlides.length) m.ruleSlides=JSON.parse(JSON.stringify(DEFAULT_RULE_SLIDES));
+  m.ruleSlides.forEach(s=>{ if(!Array.isArray(s.groups)||!s.groups.length) s.groups=['']; if(s.img===undefined) s.img=null; });
+  m.settings=normalizeSettings(m.settings);
+  if(typeof m.memo!=='string') m.memo='';
+  return m;
+}
+/** 5分モード：青くなった文字数からランク */
+function rankByCount(n, ranks){
+  let hit=0;
+  ranks.forEach((r,i)=>{ if(n>=r.min) hit=i; });
+  return hit;
+}
+/** クリアまでモード：かかった時間からランク（上のランクから順に「秒数以内」を見る） */
+function rankByTime(ms, ranks){
+  for(let i=ranks.length-1;i>=1;i--){ if(ranks[i].sec!=null && ms<=ranks[i].sec*1000) return i; }
+  return 0;
+}
+/** ランク表の「〇〜〇文字」表記 */
+function rankCountRange(ranks, i){
+  const lo=ranks[i].min, next=ranks[i+1];
+  const hi = next ? next.min-1 : null;
+  if(hi==null) return lo>=KANA.length ? `${lo}文字` : `${lo}文字以上`;
+  return lo===hi ? `${lo}文字` : `${lo}〜${hi}文字`;
+}
+function rankTimeRange(ranks, i){
+  const r=ranks[i];
+  if(r.sec==null){ const nx=ranks[i+1]; return nx && nx.sec!=null ? `${fmtDuration(nx.sec*1000)}より長い` : '—'; }
+  return `${fmtDuration(r.sec*1000)}以内`;
+}
+/** 答え配置の1文字を文字列に（ー は ー(あ) のように） */
+function slotText(s){ return s.ch==='ー' && s.v ? `ー(${s.v})` : s.ch; }
+function wordText(slots){ return slots.map(slotText).join(''); }
+
+/* ---------- IndexedDB（管理データ） ---------- */
+function openDb(){ return new Promise((res,rej)=>{ const r=indexedDB.open(DB_NAME,1); r.onupgradeneeded=()=>r.result.createObjectStore(STORE); r.onsuccess=()=>res(r.result); r.onerror=()=>rej(r.error); }); }
+async function idbGet(){ const db=await openDb(); return new Promise((res,rej)=>{ const rq=db.transaction(STORE,'readonly').objectStore(STORE).get(DATA_KEY); rq.onsuccess=()=>res(rq.result||null); rq.onerror=()=>rej(rq.error); }); }
+async function idbSet(v){ const db=await openDb(); return new Promise((res,rej)=>{ const tx=db.transaction(STORE,'readwrite'); tx.objectStore(STORE).put(v,DATA_KEY); tx.oncomplete=()=>res(); tx.onerror=()=>rej(tx.error); }); }
+let appData=defaultAppData();
+async function loadAppData(){ try{ appData=mergeAppData(await idbGet()); }catch(e){ appData=defaultAppData(); } }
+
+/* ---------- お題リスト・使用状況・除外（3-8 お題プール管理） ---------- */
+function cleanList(list){
+  const seen=new Set(), out=[];
+  (list||[]).forEach(w=>{ w=String(w==null?'':w).split('\t')[0].trim(); if(!w || seen.has(w)) return; seen.add(w); out.push(w); });
+  return out;
+}
+function getItemList(){ const w=lsGet(LS.items, null); return cleanList(Array.isArray(w) ? w : DEFAULT_ITEMS); }
+function setItemList(list){ lsSet(LS.items, cleanList(list)); }
+function getUsed(){ return new Set(lsGet(LS.used, [])); }
+function setUsed(s){ lsSet(LS.used, [...s]); }
+function getExcluded(){ return new Set(lsGet(LS.excluded, [])); }
+function setExcluded(s){ lsSet(LS.excluded, [...s]); }
+function getHistory(){ return lsGet(LS.history, []); }
+function setHistory(h){ lsSet(LS.history, h); }
+function availablePool(skip){
+  const used=getUsed(), ex=getExcluded(), sk=new Set(skip||[]);
+  return getItemList().filter(w=>!used.has(w) && !ex.has(w) && !sk.has(w));
+}
+function usableCount(){ const ex=getExcluded(); return getItemList().filter(w=>!ex.has(w)).length; }
+/**
+ * お題を1つ選んで使用済みにする。onBoard（いま画面に出ているお題）は選ばない。
+ * 未使用がない時：ask=true なら確認してからリセット、false（ゲーム中）なら確認なしでリセット（今のお題は使用済みのまま）
+ */
+function pickItem(onBoard, ask){
+  onBoard=(onBoard||[]).filter(Boolean);
+  let pool=availablePool(onBoard), didReset=false;
+  if(!pool.length){
+    if(usableCount()-onBoard.length < 1) return null;
+    if(ask && !confirm('未使用のお題がなくなりました。\n\nお題の使用状況をリセットしますか？\n（除外したお題はそのままです）')) return false;
+    setUsed(new Set()); didReset=true;
+    if(!ask) showToast('未使用のお題がなくなったので、使用状況をリセットしました', 3500);
+    pool=availablePool(onBoard);
+  }
+  const it=pool[Math.floor(Math.random()*pool.length)];
+  const used=getUsed(); used.add(it);
+  if(didReset) onBoard.forEach(k=>used.add(k));
+  setUsed(used);
+  return it;
+}
+
+/* =========================================================
+   ホスト画面
+   ========================================================= */
+let gs=null, peer=null, myHostId=null;
+const conns={};
+const connected=new Set();
+let tickTimer=null, audioCtx=null, hostActionLockAt=0;
+
+function freshState(){
+  return { phase:'lobby', players:{}, order:[], mode:lsGet(LS.mode,'timed')==='clear'?'clear':'timed',
+           settings:null, layout:null, blue:[], topics:[null,null], answer:null, solved:[], passes:[],
+           boardWords:[], startedAt:null, heartbeatAt:null, undo:null, final:null, finalStep:0 };
+}
+function S(){ return gs.settings || appData.settings; }
+function genRoomId(){ return ROOM_PREFIX + String(Math.floor(100000+Math.random()*900000)); }
+function joinUrl(){ return myHostId ? location.origin+location.pathname+'?room='+encodeURIComponent(myHostId) : ''; }
+function pname(pid){ const p=gs.players[pid]; return p?p.name:'（退出）'; }
+function isActive(pid){ const p=gs.players[pid]; return !!p && (p.dummy || connected.has(pid)); }
+function activePids(){ return gs.order.filter(isActive); }
+function maxLetters(){ return Math.max(MIN_LETTERS, activePids().length*TAPS_PER_PLAYER); }
+function tapsOf(pid){ return gs.answer ? gs.answer.slots.filter(s=>s.pid===pid).length : 0; }
+function elapsedMs(){ return gs.startedAt ? Date.now()-gs.startedAt : 0; }
+function remainMs(){ return S().timeLimitSec*1000 - elapsedMs(); }
+function newAnswer(){ return { id:uid(), slots:[] }; }
+
+async function initHost(){
+  requestWakeLock();
+  await loadAppData();
+  const saved=lsGet(LS.state,null), room=lsGet(LS.room,null);
+  const resumable = saved && room && saved.phase!=='final' && (saved.phase!=='lobby' || Object.keys(saved.players||{}).length);
+  if(resumable && confirm('前回の続きから再開しますか？\n\nOK：続きから再開（同じQRのまま）\nキャンセル：新しい部屋を作る')){
+    gs=Object.assign(freshState(), saved);
+    // ホストが落ちていた間は時間を進めない
+    if(gs.phase==='playing' && gs.startedAt && gs.heartbeatAt){ gs.startedAt += Math.max(0, Date.now()-gs.heartbeatAt); }
+    startPeer(room, 0);
+  } else {
+    localStorage.removeItem(LS.state); localStorage.removeItem(LS.room);
+    gs=freshState();
+    startPeer(null, 0);
+  }
+  document.getElementById('app').addEventListener('click', onHostClick);
+  document.addEventListener('keydown', onHostKey);
+  tickTimer=setInterval(tickHost, 200);
+  renderHost();
+}
+function startPeer(roomId, retry){
+  const id=roomId||genRoomId();
+  if(peer){ try{ peer.destroy(); }catch(e){} }
+  peer=new Peer(id);
+  peer.on('open', pid=>{ myHostId=pid; lsSet(LS.room, pid); saveState(); renderHost(); });
+  peer.on('connection', conn=>{
+    conn.on('data', data=>handleSubMessage(conn, data));
+    conn.on('close', ()=>{
+      const pid=conn._pid;
+      if(pid && conns[pid]===conn){ delete conns[pid]; connected.delete(pid); syncAll(); renderHost(); }
+    });
+  });
+  peer.on('error', err=>{
+    if(err && err.type==='unavailable-id'){
+      if(roomId && retry<8){ setTimeout(()=>startPeer(roomId, retry+1), 2500); }
+      else { showToast('部屋番号を新しくしました。スマホはQRから入り直してください', 5000); startPeer(null, 0); }
+    } else { console.error(err); }
+  });
+  peer.on('disconnected', ()=>{ try{ peer.reconnect(); }catch(e){} });
+}
+function saveState(){ gs.heartbeatAt=Date.now(); lsSet(LS.state, gs); }
+function commit(){ saveState(); syncAll(); renderHost(); }
+function sendTo(pid, msg){ const c=conns[pid]; if(c && c.open){ try{ c.send(msg); }catch(e){} } }
+function syncAll(){ Object.keys(conns).forEach(pid=>sendTo(pid, snapshotFor(pid))); }
+/** 参加者に送る画面情報（参加者は毎回これで上書きするだけ） */
+function snapshotFor(pid){
+  const playing=gs.phase==='playing';
+  return {
+    type:'state', title:GAME_TITLE, phase:gs.phase, name:pname(pid), mode:gs.mode,
+    layout: gs.layout, blue: gs.blue,
+    topics: playing ? gs.topics : [null,null],
+    slots: gs.answer ? gs.answer.slots.map(s=>({ch:s.ch, v:s.v||null, mine:s.pid===pid})) : [],
+    answerId: gs.answer ? gs.answer.id : null,
+    maxLetters: maxLetters(), myTaps: tapsOf(pid), tapsPer: TAPS_PER_PLAYER,
+    remainMs: playing && gs.mode==='timed' ? Math.max(0, remainMs()) : null,
+    elapsedMs: playing && gs.mode==='clear' ? elapsedMs() : null,
+    final: gs.phase==='final' && gs.final ? { mode:gs.final.mode, blue:gs.final.blue, ms:gs.final.ms, showRank:gs.finalStep>=1, rankName:gs.final.rankName, cleared:gs.final.cleared } : null
+  };
+}
+function handleSubMessage(conn, data){
+  if(!data || !data.type) return;
+  if(data.type==='join'){
+    let pid=String(data.pid||''); const name=String(data.name||'').trim().slice(0,12);
+    if(!pid || !name) return;
+    const norm=n=>String(n).normalize('NFKC').trim().toLowerCase();
+    if(!gs.players[pid]){
+      const same=gs.order.find(p=>gs.players[p] && !gs.players[p].dummy && norm(gs.players[p].name)===norm(name));
+      if(same && !connected.has(same)){
+        // タブを閉じて入り直した人：同じニックネームで切断中の人として復帰
+        gs.players[pid]=gs.players[same]; delete gs.players[same];
+        gs.order=gs.order.map(p=>p===same?pid:p);
+        if(gs.answer) gs.answer.slots.forEach(s=>{ if(s.pid===same) s.pid=pid; });
+      } else if(same || gs.order.some(p=>gs.players[p] && norm(gs.players[p].name)===norm(name))){ try{ conn.send({type:'name_taken'}); }catch(e){} return; }
+      else { gs.players[pid]={name}; gs.order.push(pid); }
+    } else {
+      if(gs.order.some(p=>p!==pid && gs.players[p] && norm(gs.players[p].name)===norm(name))){ try{ conn.send({type:'name_taken'}); }catch(e){} return; }
+      gs.players[pid].name=name;
+    }
+    const old=conns[pid];
+    conn._pid=pid; conns[pid]=conn; connected.add(pid);
+    if(old && old!==conn){ try{ old.close(); }catch(e){} }
+    commit();
+    return;
+  }
+  const pid=conn._pid;
+  if(!pid || !gs.players[pid]) return;
+  if(data.type==='tap'){
+    const err=placeLetter(pid, data.ch, data.v, data.answerId);
+    if(err){ sendTo(pid, {type:'reject', msg:err}); sendTo(pid, snapshotFor(pid)); }
+  }
+}
+/** 文字を答え配置欄に置く。だめな理由があれば文字列を返す */
+function placeLetter(pid, ch, v, answerId){
+  if(gs.phase!=='playing' || !gs.answer) return 'いまは配置できません';
+  if(answerId && answerId!==gs.answer.id) return '答え配置がリセットされました。もう一度タップしてください';
+  if(!KANA.includes(ch)) return '不明な文字です';
+  if(ch==='ー' && !VOWELS.includes(v)) return '「ー」の音を選んでください';
+  if(tapsOf(pid)>=TAPS_PER_PLAYER) return `この答えでは、もう${TAPS_PER_PLAYER}回タップしました`;
+  if(gs.answer.slots.length>=maxLetters()) return `最大${maxLetters()}文字までです`;
+  gs.answer.slots.push({ch, v: ch==='ー' ? v : null, pid});
+  commit();
+  return null;
+}
+
+/* ----- 進行 ----- */
+function startGame(){
+  if(activePids().length<MIN_PLAYERS){ alert(`参加者が${MIN_PLAYERS}人以上必要です`); return; }
+  loadAppData().then(()=>{
+    const t1=pickItem([], true); if(t1===false) return;
+    const t2=t1 ? pickItem([t1], true) : null; if(t2===false) return;
+    if(!t1){ alert('使えるお題がありません。管理ページでお題を登録してください。'); return; }
+    gs.settings=JSON.parse(JSON.stringify(appData.settings));   // ゲーム中は開始時点の設定で固定
+    gs.layout=shuffle(KANA);   // 全員同じ配置（ゲームごとにランダム）
+    gs.blue=[]; gs.topics=[t1, t2||null]; gs.answer=newAnswer();
+    gs.solved=[]; gs.passes=[]; gs.boardWords=[t1, t2].filter(Boolean);
+    gs.undo=null; gs.final=null; gs.finalStep=0;
+    gs.startedAt=Date.now();
+    gs.phase='playing';
+    commit();
+  });
+}
+/** お題を1つ進める（1つ目が消え、2つ目が1つ目に、新しいお題が2つ目に） */
+function advanceTopic(){
+  const next=pickItem(gs.topics, false);
+  if(next) gs.boardWords.push(next);
+  gs.topics=[gs.topics[1]||next||null, gs.topics[1] ? (next||null) : null];
+}
+function snapshotUndo(kind){
+  gs.undo={ kind, blue:gs.blue.slice(), topics:gs.topics.slice(), answer:JSON.parse(JSON.stringify(gs.answer)),
+            solvedLen:gs.solved.length, passesLen:gs.passes.length };
+}
+function doCorrect(){
+  if(gs.phase!=='playing' || !gs.answer) return;
+  const slots=gs.answer.slots;
+  if(slots.length<MIN_LETTERS){ showToast(`${MIN_LETTERS}文字以上置いてから正解にしてください`); return; }
+  snapshotUndo('correct');
+  const blue=new Set(gs.blue);
+  let added=0;
+  slots.forEach(s=>{ if(!blue.has(s.ch)){ blue.add(s.ch); added++; } });
+  gs.blue=KANA.filter(k=>blue.has(k));
+  gs.solved.push({ topic:gs.topics.filter(Boolean).join('／'), word:wordText(slots), added, at:elapsedMs(), by:[...new Set(slots.map(s=>pname(s.pid)))] });
+  gs.answer=newAnswer();
+  advanceTopic();
+  showToast(`⭕ 正解！ ${added?`新しく${added}文字が青くなりました`:'（新しく青くなった文字はありません）'}`);
+  if(gs.mode==='clear' && gs.blue.length>=KANA.length){ finishGame('clear'); return; }
+  commit();
+}
+function doReset(){
+  if(gs.phase!=='playing' || !gs.answer) return;
+  if(!gs.answer.slots.length){ showToast('答え配置は空です'); return; }
+  gs.answer=newAnswer();
+  showToast('答え配置をリセットしました');
+  commit();
+}
+function doPass(){
+  if(gs.phase!=='playing') return;
+  snapshotUndo('pass');
+  gs.passes.push({ topic:gs.topics[0], at:elapsedMs() });
+  gs.answer=newAnswer();
+  advanceTopic();
+  showToast('お題を変更しました');
+  commit();
+}
+function doUndo(){
+  const u=gs.undo; if(!u || gs.phase!=='playing') return;
+  if(!confirm(`直前の「${u.kind==='correct'?'正解':'お題変更'}」を取り消しますか？\n（お題と答え配置、青いカードがその前の状態に戻ります）`)) return;
+  gs.blue=u.blue; gs.topics=u.topics; gs.answer=u.answer;
+  gs.solved=gs.solved.slice(0,u.solvedLen); gs.passes=gs.passes.slice(0,u.passesLen);
+  gs.undo=null;
+  commit();
+}
+/** reason: 'timeup'（5分モード終了）／'clear'（全部青）／'giveup'（クリアまでモードを途中終了） */
+function finishGame(reason){
+  if(gs.phase!=='playing') return;
+  const s=S(), now=Date.now();
+  const ms = gs.mode==='timed' ? s.timeLimitSec*1000 : elapsedMs();
+  const blue=gs.blue.length;
+  let rankIdx=null;
+  if(gs.mode==='timed') rankIdx=rankByCount(blue, s.ranks);
+  else if(reason==='clear') rankIdx=rankByTime(ms, s.ranks);
+  gs.final={ mode:gs.mode, reason, blue, ms, cleared: reason==='clear' || (gs.mode==='timed' && blue>=KANA.length),
+             rankIdx, rankName: rankIdx==null ? null : s.ranks[rankIdx].name, at:now };
+  gs.finalStep=0; gs.undo=null;
+  gs.phase='final';
+  const h=getHistory();
+  h.push({ id:uid(), at:now, mode:gs.mode, reason, blue, ms, rank:gs.final.rankName,
+           solved:gs.solved.length, passes:gs.passes.length,
+           answers:gs.solved.map(x=>`${x.topic}：${x.word}`),
+           players: gs.order.filter(p=>gs.players[p]).map(p=>pname(p)+(gs.players[p].dummy?'（ダミー）':'')).join('、'),
+           playerCount: activePids().length,
+           words: gs.boardWords.slice() });
+  setHistory(h);
+  if(reason==='timeup') beep();
+  commit();
+}
+function playAgain(){
+  gs.phase='lobby'; gs.settings=null; gs.layout=null; gs.blue=[]; gs.topics=[null,null]; gs.answer=null;
+  gs.solved=[]; gs.passes=[]; gs.boardWords=[]; gs.startedAt=null; gs.undo=null; gs.final=null; gs.finalStep=0;
+  commit();
+}
+
+/* ----- タイマー（画面全体は描き直さず数字だけ更新） ----- */
+function beep(){
+  try{
+    audioCtx=audioCtx||new (window.AudioContext||window.webkitAudioContext)();
+    [0,0.35,0.7].forEach(off=>{
+      const o=audioCtx.createOscillator(), g=audioCtx.createGain();
+      o.frequency.value=880; o.connect(g); g.connect(audioCtx.destination);
+      const t=audioCtx.currentTime+off; g.gain.setValueAtTime(0.25,t); g.gain.exponentialRampToValueAtTime(0.001,t+0.3);
+      o.start(t); o.stop(t+0.3);
+    });
+  }catch(e){}
+}
+let lastBeatSave=0;
+function tickHost(){
+  if(!gs || gs.phase!=='playing') return;
+  if(gs.mode==='timed' && remainMs()<=0){ finishGame('timeup'); return; }
+  const el=document.getElementById('host-timer');
+  if(el){
+    if(gs.mode==='timed'){ const r=remainMs(); el.textContent=fmtClock(r+999); el.classList.toggle('warn', r<=60000); }
+    else el.textContent=fmtClock(elapsedMs());
+  }
+  if(Date.now()-lastBeatSave>1000){ lastBeatSave=Date.now(); saveState(); }
+}
+
+function openQrModal(){
+  if(!myHostId){ showToast('部屋を準備中です'); return; }
+  const m=openModal(`<h3>参加用QRコード</h3><div style="text-align:center"><div class="qrbox" id="qr-modal"></div><div class="url" style="color:#666">${esc(joinUrl())}</div></div>`);
+  new QRCode(m.el.querySelector('#qr-modal'), {text:joinUrl(), width:260, height:260});
+}
+function kickPlayer(pid){
+  if(!gs.players[pid] || !confirm(`${pname(pid)}さんを参加者から外しますか？`)) return;
+  sendTo(pid, {type:'removed'});
+  const c=conns[pid]; delete conns[pid]; connected.delete(pid);
+  delete gs.players[pid];
+  gs.order=gs.order.filter(p=>p!==pid);
+  setTimeout(()=>{ try{ c&&c.close(); }catch(err){} }, 300);
+  commit();
+}
+function addDummies(){
+  let n=1;
+  for(let i=0;i<4;i++){
+    while(gs.order.some(p=>gs.players[p] && gs.players[p].name===`テスト${n}`)) n++;
+    const pid='dummy-'+uid(); gs.players[pid]={name:`テスト${n}`, dummy:true}; gs.order.push(pid); n++;
+  }
+  commit();
+}
+function removeDummies(){
+  gs.order.filter(p=>gs.players[p] && gs.players[p].dummy).forEach(p=>delete gs.players[p]);
+  gs.order=gs.order.filter(p=>gs.players[p]);
+  commit();
+}
+/** リハーサル用：ホスト画面のカードをクリックすると、タップ回数が残っているダミーが置く */
+function dummyTap(ch){
+  const d=activePids().find(p=>gs.players[p].dummy && tapsOf(p)<TAPS_PER_PLAYER);
+  if(!d){ showToast('タップできるダミーがいません'); return; }
+  const place=v=>{ const err=placeLetter(d, ch, v, null); if(err) showToast(err); };
+  if(ch==='ー') askVowel(place); else place(null);
+}
+function askVowel(cb){
+  const m=openModal(`<h3>「ー」はどの音ですか？</h3><p style="font-size:13px;color:#666">のばす音を選んでください</p>
+    <div class="vowel-btns">${VOWELS.map(v=>`<button data-v="${v}">${v}</button>`).join('')}</div>`, [{label:'キャンセル'}]);
+  m.el.querySelectorAll('[data-v]').forEach(b=>b.onclick=()=>{ m.close(); cb(b.dataset.v); });
+  return m;
+}
+
+/* ----- 操作 ----- */
+function onHostClick(e){
+  const card=e.target.closest('.board.clickable .kcard');
+  if(card && gs.phase==='playing'){ dummyTap(card.dataset.ch); return; }
+  const mo=e.target.closest('[data-modeopt]');
+  if(mo && gs.phase==='lobby'){ gs.mode=mo.dataset.modeopt; lsSet(LS.mode, gs.mode); commit(); return; }
+  const b=e.target.closest('[data-act]');
+  if(!b || b.disabled) return;
+  b.blur();   // スペースキーでボタンが押し直されないように
+  const act=b.dataset.act;
+  if(b.classList.contains('primary') || b.classList.contains('enter-target')){
+    if(Date.now()-hostActionLockAt<400) return;
+    hostActionLockAt=Date.now();
+  }
+  try{ audioCtx=audioCtx||new (window.AudioContext||window.webkitAudioContext)(); if(audioCtx.state==='suspended') audioCtx.resume(); }catch(err){}
+  if(act==='qr') openQrModal();
+  else if(act==='admin'){ if(gs.phase==='lobby' || confirm('管理ページを開きますか？\n（ゲームの進行状況は保存されます。戻ると「続きから再開」できます）')) location.href=location.pathname+'?mode=admin'; }
+  else if(act==='newroom'){
+    if(!confirm('新しい部屋を作り直しますか？\n（今の進行状況は消え、スマホはQRから入り直しになります）')) return;
+    localStorage.removeItem(LS.state); localStorage.removeItem(LS.room);
+    location.reload();
+  }
+  else if(act==='kick') kickPlayer(b.dataset.pid);
+  else if(act==='dummy-add') addDummies();
+  else if(act==='dummy-del') removeDummies();
+  else if(act==='start') startGame();
+  else if(act==='correct') doCorrect();
+  else if(act==='reset') doReset();
+  else if(act==='pass') doPass();
+  else if(act==='undo') doUndo();
+  else if(act==='end'){
+    if(gs.mode==='clear'){ if(confirm('ゲームを途中で終了しますか？\n（クリアまでモードは記録が「途中終了」になり、ランクはつきません）')) finishGame('giveup'); }
+    else if(confirm('制限時間の途中ですが、ゲームを終了して結果発表に進みますか？')) finishGame('timeup');
+  }
+  else if(act==='rank'){ gs.finalStep=1; commit(); }
+  else if(act==='again') playAgain();
+}
+function onHostKey(e){
+  if(e.repeat || e.isComposing || e.keyCode===229) return;
+  const t=e.target;
+  if(t && (t.tagName==='INPUT' || t.tagName==='TEXTAREA' || t.tagName==='SELECT' || t.isContentEditable)) return;
+  if(document.querySelector('#modal-root .modal-bg')) return;
+  if(gs.phase==='playing'){
+    if(e.key==='Enter'){ e.preventDefault(); doCorrect(); }
+    else if(e.key==='Delete' || e.key==='Backspace'){ e.preventDefault(); doReset(); }
+    else if(e.key===' ' || e.code==='Space'){ e.preventDefault(); doPass(); }
+    return;
+  }
+  if(e.key==='Enter'){
+    const b=document.querySelector('button.enter-target:not([disabled])');
+    if(b){ e.preventDefault(); b.click(); }
+  }
+}
+
+/* ----- 描画 ----- */
+function boardHtml(layout, blue, clickable){
+  const bl=new Set(blue||[]);
+  return `<div class="board ${clickable?'clickable':''}">${(layout||KANA).map(ch=>`<div class="kcard ${bl.has(ch)?'blue':''}" data-ch="${ch}">${ch}</div>`).join('')}</div>`;
+}
+function slotsHtml(slots, max, opt){
+  opt=opt||{};
+  const out=[];
+  for(let i=0;i<Math.max(max, slots.length);i++){
+    const s=slots[i];
+    if(s) out.push(`<div class="slot filled ${s.mine?'mine':''}">${esc(s.ch)}${s.ch==='ー'&&s.v?`<span class="v">（${esc(s.v)}）</span>`:''}${opt.names?`<span class="who">${esc(opt.names(s))}</span>`:''}</div>`);
+    else out.push(`<div class="slot ${i<MIN_LETTERS?'min':''}"></div>`);
+  }
+  return `<div class="slots">${out.join('')}</div>`;
+}
+function topicsHtml(topics){
+  return `<div class="topics-head">どちらかのお題に合う言葉を作ろう</div>
+    <div class="topics"><div class="topic now">${esc(topics[0]||'（お題がありません）')}</div>
+    <div class="topic now">${esc(topics[1]||'（お題がありません）')}</div></div>`;
+}
+function ruleHtml(){
+  const slides=appData.ruleSlides;
+  return slides.map(sl=>`${sl.img?`<img class="rule-img" src="${sl.img}">`:''}${sl.groups.filter(g=>stripHtml(g)).map(g=>`<div>${g}</div>`).join('')}`).join('');
+}
+function modeName(m){ return m==='clear' ? 'クリアまでモード' : `${Math.round(S().timeLimitSec/60*10)/10}分モード`; }
+function hostTopbar(){
+  return `<div class="topbar">
+    <span class="title">${esc(GAME_TITLE)}</span>
+    ${gs.phase!=='lobby'?`<span class="mode-label">${esc(gs.phase==='final'&&gs.final?modeNameFor(gs.final.mode):modeName(gs.mode))}</span>`:''}
+    <span class="spacer"></span>
+    ${gs.phase!=='lobby'?'<button class="small" data-act="qr">📱 QR表示</button>':''}
+    <button class="small" data-act="admin">⚙ 管理ページ</button>
+    <button class="small ghost" data-act="newroom">🆕 新しい部屋を作り直す</button>
+  </div>`;
+}
+function modeNameFor(m){ return modeName(m); }
+function playerChips(){
+  return `<div class="chips">${gs.order.filter(p=>gs.players[p]).map(pid=>{
+    const p=gs.players[pid], on=isActive(pid);
+    return `<span class="chip ${on?'':'off'}"><span class="dot ${on?'on':''}"></span>${esc(p.name)}${p.dummy?'（ダミー）':''}${on?'':'（切断中）'}<button class="x" data-act="kick" data-pid="${esc(pid)}" title="参加者から外す">✕</button></span>`;
+  }).join('')}</div>`;
+}
+
+function renderHost(){
+  const app=document.getElementById('app');
+  if(!gs) return;
+  const ph=gs.phase, s=S();
+  let body='';
+  if(ph==='lobby'){
+    const pids=gs.order.filter(p=>gs.players[p]);
+    const n=activePids().length;
+    const hasDummy=pids.some(p=>gs.players[p].dummy);
+    const tl=appData.settings.timeLimitSec;
+    body=`<div class="card" style="text-align:center">
+      <h2>スマホでQRコードを読み込んで参加してください</h2>
+      <div class="lobby">
+        <div>${myHostId?'<div class="qrbox" id="qr"></div>':'<div class="spinner"></div><p>部屋を準備中…</p>'}
+          <div class="url">${esc(joinUrl())}</div></div>
+        <div>
+          <h3>参加者 ${n}人${pids.length>n?` <span class="muted" style="font-size:14px">（切断中 ${pids.length-n}人）</span>`:''}</h3>
+          <div class="plist">${pids.length ? pids.map(pid=>`<div class="pitem"><span class="dot ${isActive(pid)?'on':''}" style="width:10px;height:10px"></span>${esc(pname(pid))}${gs.players[pid].dummy?'<span class="muted" style="font-size:14px">（ダミー）</span>':''}<span class="spacer"></span><button class="small ghost" data-act="kick" data-pid="${esc(pid)}">✕</button></div>`).join('')
+            : '<p class="muted">参加待ち…</p>'}</div>
+          ${n?`<p class="muted" style="margin:8px 0 0">いまの人数での文字数：<b style="color:var(--text)">${MIN_LETTERS}〜${maxLetters()}文字</b></p>`:''}
+        </div>
+      </div>
+      <div class="mode-select">
+        <div class="mode-opt ${gs.mode==='timed'?'sel':''}" data-modeopt="timed"><div class="t">⏱ ${esc(fmtDuration(tl*1000).replace(/00秒$/,'').replace(/^0分/,''))}モード</div><div class="d">制限時間内に何文字を青くできるか</div></div>
+        <div class="mode-opt ${gs.mode==='clear'?'sel':''}" data-modeopt="clear"><div class="t">🏁 クリアまでモード</div><div class="d">全${KANA.length}文字が青くなるまでの時間</div></div>
+      </div>
+      <div style="margin:18px 0 6px">
+        <button class="primary big enter-target" data-act="start" ${n>=MIN_PLAYERS?'':'disabled'}>ゲームスタート ▶</button>
+        ${n<MIN_PLAYERS?`<p class="muted">参加者が${MIN_PLAYERS}人以上になるとスタートできます</p>`:''}
+      </div>
+      <div class="row" style="justify-content:center;margin-top:10px">
+        <button class="small ghost" data-act="dummy-add">🧪 リハーサル用ダミー参加者を追加（4名）</button>
+        ${hasDummy?'<button class="small ghost" data-act="dummy-del">ダミーを全員削除</button>':''}
+      </div>
+    </div>`;
+  }
+  else if(ph==='playing'){
+    const a=gs.answer, max=maxLetters(), hasDummy=activePids().some(p=>gs.players[p].dummy);
+    const timerHtml = gs.mode==='timed'
+      ? `<div class="timer-label">残り時間</div><div class="timer ${remainMs()<=60000?'warn':''}" id="host-timer">${fmtClock(remainMs()+999)}</div>`
+      : `<div class="timer-label">経過時間</div><div class="timer" id="host-timer">${fmtClock(elapsedMs())}</div>`;
+    body=`${playerChips()}<div class="play">
+      <div>
+        ${topicsHtml(gs.topics)}
+        <div class="len-info">答え配置（${MIN_LETTERS}〜${max}文字・1人${TAPS_PER_PLAYER}回まで）　いま ${a.slots.length}文字</div>
+        ${slotsHtml(a.slots, max, {names:sl=>pname(sl.pid)})}
+        <div class="keybar">
+          <button class="ok" data-act="correct" ${a.slots.length<MIN_LETTERS?'disabled':''}>⭕ 正解<kbd>Enter</kbd></button>
+          <button data-act="reset" ${a.slots.length?'':'disabled'}>🧹 答え配置リセット<kbd>Delete</kbd></button>
+          <button class="blue" data-act="pass">🔄 お題変更<kbd>Space</kbd></button>
+        </div>
+        <div class="row" style="justify-content:center">
+          <button class="small ghost" data-act="undo" ${gs.undo?'':'disabled'}>↩ 直前の${gs.undo&&gs.undo.kind==='pass'?'お題変更':'正解'}を取り消す</button>
+          <button class="small danger" data-act="end">🏁 ゲームを終了</button>
+        </div>
+        <div class="card" style="margin-top:16px"><h3>ルール</h3><div class="rule-display">${ruleHtml()}</div></div>
+      </div>
+      <div>
+        <div class="card">${timerHtml}
+          <div class="blue-count">青いカード <b>${gs.blue.length}</b> / ${KANA.length}</div></div>
+        <div class="card">${boardHtml(gs.layout, gs.blue, hasDummy)}
+          ${hasDummy?'<p class="muted" style="font-size:12px;margin:8px 0 0">🧪 カードをクリックするとダミーが置きます（リハーサル用）</p>':''}</div>
+        ${gs.solved.length?`<div class="card"><h3>正解した言葉（${gs.solved.length}）</h3><div class="solved">${gs.solved.slice().reverse().map(x=>`<div>${esc(x.word)} <span class="muted">（${esc(x.topic)}）</span></div>`).join('')}</div></div>`:''}
+      </div>
+    </div>`;
+  }
+  else if(ph==='final'){
+    const f=gs.final, ranks=s.ranks;
+    const head = f.mode==='timed'
+      ? `<div class="result-banner"><div style="font-size:24px;font-weight:800">青くなったカード</div><div class="big">${f.blue} <span style="font-size:32px">/ ${KANA.length}文字</span></div></div>`
+      : f.reason==='clear'
+        ? `<div class="result-banner"><div style="font-size:24px;font-weight:800">🎉 全${KANA.length}文字クリア！ かかった時間</div><div class="big">${esc(fmtDuration(f.ms))}</div></div>`
+        : `<div class="result-banner" style="background:linear-gradient(135deg,#5a1a1d,#a3262b)"><div style="font-size:24px;font-weight:800">途中終了（${esc(fmtDuration(f.ms))}）</div><div class="big">${f.blue} <span style="font-size:32px">/ ${KANA.length}文字</span></div></div>`;
+    const rankPart = f.rankIdx==null ? '' : gs.finalStep<1
+      ? `<div style="text-align:center;margin:20px 0"><button class="primary big enter-target" data-act="rank">🏆 ランク発表</button></div>`
+      : `<div style="text-align:center;font-size:24px;font-weight:800;margin-top:10px">あなたたちの関係は…</div>
+         <div class="rank-name">${esc(f.rankName)}</div>
+         <div class="card"><table class="rank-table" style="font-size:16px"><thead><tr><th>ランク</th><th>${f.mode==='timed'?'青くなった文字数':'かかった時間'}</th></tr></thead><tbody>
+           ${ranks.map((r,i)=>({r,i})).reverse().map(({r,i})=>`<tr><td class="${i===f.rankIdx?'hit':''}">${esc(r.name)}</td><td class="${i===f.rankIdx?'hit':''}">${esc(f.mode==='timed'?rankCountRange(ranks,i):rankTimeRange(ranks,i))}</td></tr>`).join('')}
+         </tbody></table></div>`;
+    body=`${head}${rankPart}
+      <div class="play" style="margin-top:14px">
+        <div class="card"><h3>正解した言葉（${gs.solved.length}）・お題変更 ${gs.passes.length}回</h3>
+          <div class="solved" style="max-height:none">${gs.solved.map(x=>`<div>⭕ ${esc(x.word)} <span class="muted">（${esc(x.topic)}・+${x.added}文字）</span></div>`).join('')||'<p class="muted">なし</p>'}</div></div>
+        <div class="card">${boardHtml(gs.layout, gs.blue, false)}</div>
+      </div>
+      ${f.rankIdx==null||gs.finalStep>=1?`<div style="text-align:center;margin:16px 0"><button class="primary big" data-act="again">🔁 もう一度遊ぶ（同じメンバー）</button></div>`:''}`;
+  }
+  app.innerHTML=`<div class="page">${hostTopbar()}${body}</div>`;
+  const qr=document.getElementById('qr');
+  if(qr && myHostId) new QRCode(qr, {text:joinUrl(), width:240, height:240});
+}
+
+/* =========================================================
+   参加者画面（スマホ）
+   ========================================================= */
+let myPeer=null, myConn=null, myPid='', myName='', sub=null, removedByHost=false, subEndsAt=null, subStartAt=null, subLayoutKey='', vowelModal=null;
+
+function initSub(){
+  requestWakeLock();
+  myPid=sessionStorage.getItem(SS_PID) || uid();
+  sessionStorage.setItem(SS_PID, myPid);
+  myName=sessionStorage.getItem(SS_NAME) || '';
+  renderConnecting();
+  setInterval(tickSub, 250);
+  document.getElementById('app').addEventListener('click', onSubClick);
+  myPeer=new Peer();
+  myPeer.on('open', ()=>connectToHost(params.get('room')));
+  myPeer.on('disconnected', ()=>{ try{ myPeer.reconnect(); }catch(e){} });
+  myPeer.on('error', err=>{
+    if(err && err.type==='peer-unavailable' && !sub){
+      document.getElementById('app').innerHTML=`<div class="page"><div class="p-center"><div class="spinner"></div>
+        <p>部屋が見つかりません。ホストの画面が開いているか、QRコードが最新か確認してください。<br>自動で再接続を試みています…</p></div></div>`;
+    }
+  });
+}
+function connectToHost(roomId){
+  let timer=null;
+  const retry=()=>{ if(removedByHost) return; clearTimeout(timer); timer=setTimeout(tryConnect, 3000); };
+  function tryConnect(){
+    if(removedByHost) return;
+    try{
+      const conn=myPeer.connect(roomId, {reliable:true});
+      myConn=conn;
+      conn.on('open', ()=>{ if(myName) sendJoin(); else renderNameForm(''); });
+      conn.on('data', handleHostMessage);
+      conn.on('close', ()=>{ if(myConn===conn){ sub=null; subLayoutKey=''; renderConnecting(); retry(); } });
+      conn.on('error', ()=>{ if(myConn===conn) retry(); });
+      setTimeout(()=>{ if(myConn===conn && !conn.open){ try{ conn.close(); }catch(e){} retry(); } }, 8000);
+    }catch(e){ retry(); }
+  }
+  tryConnect();
+}
+function sendHost(msg){ if(myConn && myConn.open){ try{ myConn.send(msg); return true; }catch(e){} } showToast('通信が切れています。再接続をお待ちください'); return false; }
+function sendJoin(){ sendHost({type:'join', pid:myPid, name:myName}); }
+function renderConnecting(){
+  subLayoutKey='';
+  document.getElementById('app').innerHTML=`<div class="page"><div class="p-center"><div class="spinner"></div>
+    <p>ホスト画面に接続しています…</p><p class="muted" style="font-size:13px">つながらない場合はそのまま少しお待ちください（自動で再接続します）</p></div></div>`;
+}
+function renderNameForm(err){
+  subLayoutKey='';
+  document.getElementById('app').innerHTML=`<div class="page"><div class="p-center">
+    <h2>${esc(GAME_TITLE)}</h2>
+    <p>ニックネームを入力してください</p>
+    ${err?`<p style="color:var(--danger)">${esc(err)}</p>`:''}
+    <input type="text" id="nick" maxlength="12" placeholder="ニックネーム（12文字まで）" value="${esc(myName)}">
+    <div style="margin-top:14px"><button class="primary" id="btn-join" style="width:100%;padding:14px;font-size:17px">参加する</button></div>
+    <p class="muted" style="font-size:13px">途中で画面を閉じてしまった場合は、同じニックネームで入り直すと復帰できます</p>
+  </div></div>`;
+  document.getElementById('btn-join').onclick=()=>{
+    const v=document.getElementById('nick').value.trim();
+    if(!v){ alert('ニックネームを入力してください'); return; }
+    myName=v; sessionStorage.setItem(SS_NAME, v);
+    sendJoin();
+  };
+}
+function handleHostMessage(data){
+  if(!data) return;
+  if(data.type==='state'){
+    const prevAns=sub && sub.answerId;
+    sub=data;
+    subEndsAt = data.remainMs!=null ? Date.now()+data.remainMs : null;
+    subStartAt = data.elapsedMs!=null ? Date.now()-data.elapsedMs : null;
+    if(vowelModal && (data.phase!=='playing' || data.answerId!==prevAns || data.myTaps>=data.tapsPer)){ vowelModal.close(); vowelModal=null; }
+    renderSub();
+  } else if(data.type==='reject'){
+    showToast(data.msg||'配置できませんでした');
+  } else if(data.type==='name_taken'){
+    myName=''; sessionStorage.removeItem(SS_NAME);
+    renderNameForm('そのニックネームは使われています。別のニックネームにしてください');
+  } else if(data.type==='removed'){
+    removedByHost=true; sessionStorage.removeItem(SS_NAME); sessionStorage.removeItem(SS_PID);
+    subLayoutKey='';
+    document.getElementById('app').innerHTML=`<div class="page"><div class="p-center"><h2>参加者から外れました</h2><p>もう一度参加する場合はQRコードを読み直してください。</p></div></div>`;
+  }
+}
+function tickSub(){
+  const el=document.getElementById('sub-timer'); if(!el || !sub || sub.phase!=='playing') return;
+  if(subEndsAt!=null){ const ms=subEndsAt-Date.now(); el.textContent=`⏱ 残り ${fmtClock(ms+999)}`; el.classList.toggle('warn', ms<=60000); }
+  else if(subStartAt!=null){ el.textContent=`⏱ 経過 ${fmtClock(Date.now()-subStartAt)}`; }
+}
+function subCanTap(){ return sub && sub.phase==='playing' && sub.myTaps<sub.tapsPer && sub.slots.length<sub.maxLetters; }
+function onSubClick(e){
+  const card=e.target.closest('.kcard'); if(!card || !sub || sub.phase!=='playing') return;
+  if(sub.myTaps>=sub.tapsPer){ showToast(`この答えではもう${sub.tapsPer}回タップしました`); return; }
+  if(sub.slots.length>=sub.maxLetters){ showToast(`最大${sub.maxLetters}文字までです`); return; }
+  const ch=card.dataset.ch, ansId=sub.answerId;
+  if(ch==='ー'){
+    vowelModal=askVowel(v=>{ vowelModal=null; sendHost({type:'tap', ch, v, answerId:ansId}); });
+    return;
+  }
+  sendHost({type:'tap', ch, v:null, answerId:ansId});
+}
+function renderSub(){
+  const s=sub; if(!s) return;
+  const app=document.getElementById('app');
+  document.title=s.title||GAME_TITLE;
+  if(s.phase==='playing' || (s.phase==='final' && s.layout)){
+    // スクロール位置が飛ばないよう、盤面は作り直さず中身だけ更新する
+    const key=s.phase+'|'+(s.layout||[]).join('');
+    if(subLayoutKey!==key){
+      subLayoutKey=key;
+      app.innerHTML=`<div class="page"><div class="sub-fixed" id="sub-fixed"></div><div id="sub-board"></div><div id="sub-foot"></div></div>`;
+      document.getElementById('sub-board').innerHTML=boardHtml(s.layout, s.blue, false);
+    }
+    const bl=new Set(s.blue);
+    document.querySelectorAll('#sub-board .kcard').forEach(c=>c.classList.toggle('blue', bl.has(c.dataset.ch)));
+    document.querySelector('#sub-board .board').classList.toggle('locked', s.phase==='playing' && !subCanTap());
+    const fx=document.getElementById('sub-fixed');
+    if(s.phase==='playing'){
+      const left=s.tapsPer-s.myTaps;
+      const msg = s.myTaps>=s.tapsPer ? 'あなたのタップは使い切りました' : s.slots.length>=s.maxLetters ? `最大${s.maxLetters}文字に達しました` : 'カードをタップすると答え配置に置かれます';
+      fx.innerHTML=`<div class="sub-info"><span class="pill" id="sub-timer"></span><span class="pill">${MIN_LETTERS}〜${s.maxLetters}文字</span><span class="pill">あなたのタップ 残り${left}回</span></div>
+        ${topicsHtml(s.topics)}
+        <div style="margin-top:8px">${slotsHtml(s.slots, s.maxLetters)}</div>
+        <div class="sub-msg">${esc(msg)}</div>`;
+      document.getElementById('sub-foot').innerHTML=`<p class="muted" style="font-size:12px;text-align:center;margin-top:12px">${esc(s.name)} さん／黄色い枠はあなたが置いた文字です</p>`;
+      tickSub();
+    } else {
+      const f=s.final;
+      fx.innerHTML=`<div class="p-center" style="padding:14px"><h2>ゲーム終了！</h2>
+        <p style="font-size:18px;font-weight:800">${f.mode==='timed'||!f.cleared?`青くなったカード ${f.blue} / ${KANA.length}文字`:`クリアタイム ${esc(fmtDuration(f.ms))}`}</p>
+        ${f.showRank&&f.rankName?`<p style="font-size:24px;font-weight:900;color:var(--accent)">${esc(f.rankName)}</p>`:''}
+        <p>ホストの画面を見てください</p></div>`;
+      document.getElementById('sub-foot').innerHTML='';
+    }
+    return;
+  }
+  subLayoutKey='';
+  app.innerHTML=`<div class="page"><div class="p-center"><h2>${esc(s.name)} さん、ようこそ！</h2>
+    <p style="font-size:18px">ホストの画面を見てください</p>
+    <p class="muted" style="font-size:14px">ゲームが始まると、このスマホにお題と五十音カードが表示されます</p></div></div>`;
+}
+
+/* =========================================================
+   管理ページ
+   ========================================================= */
+let adminRanks=[], topicFilter='';
+async function initAdmin(){
+  await loadAppData();
+  adminRanks=appData.settings.ranks.map(r=>({...r}));
+  const app=document.getElementById('app');
+  app.innerHTML=`<div class="page">
+    <div class="topbar"><span class="title">${esc(GAME_TITLE)} 管理ページ</span><span class="spacer"></span>
+      <button class="primary" data-act="tohost">▶ ホスト画面へ</button></div>
+    <div class="card"><h2>実施時メモ</h2><p class="muted" style="margin-top:-6px">運営用のメモです（ゲーム画面には表示されません）</p>
+      <textarea id="memo" rows="3">${esc(appData.memo)}</textarea></div>
+    <div class="card" id="settings-card"></div>
+    <div class="card"><h2>ルール説明</h2>
+      <p class="muted" style="margin-top:-6px">ゲーム中のホスト画面に表示します（全ページ・全段をまとめて表示）。</p>
+      <div id="rule-editor"></div></div>
+    <div class="sticky-actions row"><button class="primary" data-act="save">💾 保存</button><button class="blue" data-act="save-go">💾 保存してホスト画面へ</button>
+      <span class="muted" style="font-size:13px">メモ・制限時間・ランク・ルール説明は保存ボタンで保存されます（お題・履歴は操作した時点で保存されます）</span></div>
+    <div id="pool-area" style="margin-top:14px"></div>
+  </div>`;
+  renderSettings(); renderRuleSlidesEditor(); attachRuleSlidesEvents(); renderPool();
+  app.addEventListener('click', onAdminClick);
+  app.addEventListener('input', e=>{
+    if(e.target.closest('#settings-card')) updateSettingsPreview();
+    if(e.target.id==='topic-filter'){ topicFilter=e.target.value; renderTopicList(); }
+  });
+  const refresh=()=>{
+    const keep=['items-input','topic-filter'].map(id=>{ const el=document.getElementById(id); return [id, el?el.value:'']; });
+    renderPool();
+    keep.forEach(([id,v])=>{ const el=document.getElementById(id); if(el) el.value=v; });
+  };
+  window.addEventListener('storage', e=>{ if(!e.key || [LS.used,LS.excluded,LS.history,LS.items].includes(e.key)) refresh(); });
+  document.addEventListener('visibilitychange', ()=>{ if(document.visibilityState==='visible') refresh(); });
+}
+function renderSettings(){
+  const s=appData.settings;
+  document.getElementById('settings-card').innerHTML=`<h2>ゲーム設定</h2>
+    <div class="set-grid">
+      <div class="lbl">制限時間（制限時間モード）</div><div class="row"><input type="number" id="s-min" value="${Math.floor(s.timeLimitSec/60)}" min="0"> 分 <input type="number" id="s-sec" value="${s.timeLimitSec%60}" min="0" max="59"> 秒
+        <span class="muted" style="font-size:13px">（QR画面で「制限時間モード」と「クリアまで」を切り替えられます）</span></div>
+    </div>
+    <h3 style="margin-top:16px">ランク</h3>
+    <p class="muted" style="margin-top:-6px;font-size:13px">上から低いランク順に並べてください。<br>
+      制限時間モード：青くなった文字数が「〇文字以上」で判定。<br>
+      クリアまでモード：全${KANA.length}文字が青くなるまでの時間が「〇分以内」で判定（一番低いランクは「それ以上」）。</p>
+    <div class="table-wrap"><table class="rank-edit"><thead><tr><th>ランク名</th><th>制限時間モード：文字数</th><th>クリアまで：時間</th><th></th></tr></thead><tbody id="rank-rows"></tbody></table></div>
+    <button class="small" data-act="rank-add" style="margin-top:8px">＋ ランクを追加（一番上のランクとして）</button>
+    <div id="s-errors" class="err-text" style="margin-top:10px"></div>`;
+  renderRankRows();
+  updateSettingsPreview();
+}
+function renderRankRows(){
+  document.getElementById('rank-rows').innerHTML=adminRanks.map((r,i)=>`<tr data-i="${i}">
+    <td><input type="text" class="r-name" value="${esc(r.name)}"></td>
+    <td style="white-space:nowrap"><input type="number" class="r-min" value="${esc(r.min)}" min="0"> 文字以上 <span class="muted r-range"></span></td>
+    <td style="white-space:nowrap">${i===0?'<span class="muted">それ以上</span>':`<input type="number" class="r-sec" step="0.5" value="${r.sec==null?'':esc(Math.round(r.sec/60*100)/100)}" min="0"> 分以内`}</td>
+    <td style="white-space:nowrap"><button class="small ghost" data-act="rank-up" data-i="${i}" ${i===0?'disabled':''}>🔼</button>
+      <button class="small ghost" data-act="rank-down" data-i="${i}" ${i===adminRanks.length-1?'disabled':''}>🔽</button>
+      <button class="small ghost" data-act="rank-del" data-i="${i}" ${adminRanks.length<=1?'disabled':''}>削除</button></td></tr>`).join('');
+}
+function readRankRows(){
+  adminRanks=[...document.querySelectorAll('#rank-rows tr')].map((tr,i)=>{
+    const secEl=tr.querySelector('.r-sec');
+    const mins=secEl?toNum(secEl.value):NaN;
+    return { name:tr.querySelector('.r-name').value.trim(), min:toInt(tr.querySelector('.r-min').value), sec: i===0||!secEl ? null : (isNaN(mins)?NaN:Math.round(mins*60)) };
+  });
+}
+function readSettings(){
+  readRankRows();
+  const m=toInt(document.getElementById('s-min').value), sc=toInt(document.getElementById('s-sec').value);
+  const s={ timeLimitSec:(isNaN(m)?NaN:m*60)+(isNaN(sc)?NaN:sc), ranks:adminRanks.map(r=>({...r})) };
+  const errors=[];
+  if(isNaN(s.timeLimitSec)||s.timeLimitSec<10) errors.push('制限時間は10秒以上にしてください');
+  if(s.ranks.some(r=>!r.name)) errors.push('ランク名を入力してください');
+  if(s.ranks.some(r=>isNaN(r.min)||r.min<0)) errors.push('文字数は0以上の整数で入力してください');
+  else if(s.ranks.some((r,i)=>i>0 && r.min<=s.ranks[i-1].min)) errors.push('文字数は下のランクほど大きくしてください');
+  if(s.ranks.some((r,i)=>i>0 && (r.sec==null||isNaN(r.sec)||r.sec<=0))) errors.push('クリアまでモードの時間を入力してください（一番上のランク以外）');
+  else if(s.ranks.some((r,i)=>i>1 && r.sec>=s.ranks[i-1].sec)) errors.push('クリアまでモードの時間は下のランクほど短くしてください');
+  return {s, errors};
+}
+function updateSettingsPreview(){
+  const {s, errors}=readSettings();
+  document.getElementById('s-errors').innerHTML=errors.map(esc).join('<br>');
+  document.querySelectorAll('#rank-rows tr').forEach((tr,i)=>{
+    const el=tr.querySelector('.r-range'); if(!el) return;
+    el.textContent = errors.some(e=>/文字数/.test(e)) ? '' : `（${rankCountRange(s.ranks,i)}）`;
+  });
+}
+async function saveAdmin(go){
+  const {s, errors}=readSettings();
+  if(errors.length){ alert('ゲーム設定を確認してください\n\n・'+errors.join('\n・')); return; }
+  document.querySelectorAll('#rule-editor .rule-group-edit').forEach(el=>{
+    const si=Number(el.closest('.rule-slide-card').dataset.si), gi=Number(el.closest('.rule-group-block').dataset.gi);
+    appData.ruleSlides[si].groups[gi]=el.innerHTML;
+  });
+  appData.memo=document.getElementById('memo').value;
+  appData.settings=normalizeSettings(s);
+  const ov=document.getElementById('save-overlay'), bar=document.getElementById('save-bar'), pct=document.getElementById('save-pct'), msg=document.getElementById('save-msg');
+  const prog=(p,m)=>{ bar.style.width=p+'%'; pct.textContent=Math.round(p)+'%'; if(m) msg.textContent=m; };
+  ov.classList.add('active'); prog(10,'保存中…');
+  try{
+    const big=appData.ruleSlides.filter(sl=>sl.img && sl.img.length>600000);
+    for(let i=0;i<big.length;i++){ big[i].img=await compressDataUrl(big[i].img); prog(10+60*(i+1)/big.length, `画像を圧縮中…（${i+1}/${big.length}）`); }
+    prog(80,'保存中…');
+    await idbSet(appData);
+    prog(100,'保存しました');
+    await new Promise(r=>setTimeout(r,400));
+  }catch(err){ alert('保存に失敗しました'); ov.classList.remove('active'); return; }
+  ov.classList.remove('active');
+  adminRanks=appData.settings.ranks.map(r=>({...r})); renderRankRows(); updateSettingsPreview();
+  if(go) location.href=location.pathname; else showToast('保存しました');
+}
+function compressDataUrl(src, maxDim, quality){
+  maxDim=maxDim||1000; quality=quality||0.8;
+  return new Promise((resolve,reject)=>{
+    const img=new Image();
+    img.onload=()=>{
+      let w=img.width,h=img.height;
+      if(w>h){ if(w>maxDim){h=Math.round(h*maxDim/w);w=maxDim;} } else { if(h>maxDim){w=Math.round(w*maxDim/h);h=maxDim;} }
+      const c=document.createElement('canvas'); c.width=w; c.height=h;
+      c.getContext('2d').drawImage(img,0,0,w,h);
+      resolve(c.toDataURL('image/jpeg',quality));
+    };
+    img.onerror=reject; img.src=src;
+  });
+}
+function compressImageFile(file){
+  return new Promise((resolve,reject)=>{ const rd=new FileReader(); rd.onload=e=>compressDataUrl(e.target.result).then(resolve,reject); rd.onerror=reject; rd.readAsDataURL(file); });
+}
+
+/* ---- ルール説明エディタ（複数ページ・段・書式ツールバー） ---- */
+function renderRuleSlidesEditor(){
+  const slides=appData.ruleSlides;
+  document.getElementById('rule-editor').innerHTML = slides.map((slide,si)=>`
+    <div class="rule-slide-card" data-si="${si}">
+      <div class="row" style="margin-bottom:8px">
+        <b>ページ${si+1}</b>
+        <button type="button" class="small" data-ract="slide-up" ${si===0?'disabled':''}>🔼</button>
+        <button type="button" class="small" data-ract="slide-down" ${si===slides.length-1?'disabled':''}>🔽</button>
+        <button type="button" class="small ghost" data-ract="slide-del" ${slides.length<=1?'disabled':''}>🗑 ページ削除</button>
+      </div>
+      <div class="row" style="margin-bottom:8px">
+        <span class="muted" style="font-size:13px">画像：</span><input type="file" accept="image/*" data-ract="slide-img-input">
+        ${slide.img?`<img class="thumb" src="${slide.img}"><button type="button" class="small ghost" data-ract="slide-img-remove">画像を削除</button>`:''}
+      </div>
+      ${slide.groups.map((g,gi)=>`
+        <div class="rule-group-block" data-gi="${gi}">
+          <div class="rich-toolbar">
+            <span class="muted" style="font-size:12px;margin-right:4px">段${gi+1}</span>
+            <button type="button" data-ract="fmt" data-cmd="bold">太字</button>
+            <button type="button" data-ract="fmt" data-cmd="colorclass" data-val="rule-red">赤字</button>
+            <button type="button" data-ract="fmt" data-cmd="colorclass" data-val="rule-normal">黒字</button>
+            <button type="button" data-ract="fmt" data-cmd="upsize">文字を大きく</button>
+            <button type="button" data-ract="fmt" data-cmd="removeFormat">標準サイズに戻す</button>
+            <span class="spacer"></span>
+            <button type="button" class="ghost" data-ract="group-up" ${gi===0?'disabled':''}>▲段</button>
+            <button type="button" class="ghost" data-ract="group-down" ${gi===slide.groups.length-1?'disabled':''}>▼段</button>
+            <button type="button" class="ghost" data-ract="group-ins-above">⤒上に段を挿入</button>
+            <button type="button" class="ghost" data-ract="group-ins-below">⤓下に段を挿入</button>
+            <button type="button" class="ghost" data-ract="group-del" ${slide.groups.length<=1?'disabled':''}>🗑段</button>
+          </div>
+          <div class="rule-edit rule-group-edit" contenteditable="true">${g||''}</div>
+        </div>`).join('')}
+      <button type="button" class="small" data-ract="group-add">＋ 段を追加</button>
+    </div>`).join('') + `<button type="button" class="small" data-ract="slide-add">＋ ページを追加</button>`;
+}
+function attachRuleSlidesEvents(){
+  const container=document.getElementById('rule-editor');
+  container.addEventListener('mousedown', e=>{ if(e.target.closest('.rich-toolbar')) e.preventDefault(); });
+  container.addEventListener('click', e=>{
+    const btn=e.target.closest('[data-ract]'); if(!btn || btn.disabled) return;
+    const act=btn.dataset.ract;
+    if(act==='slide-add'){ appData.ruleSlides.push({img:null, groups:['']}); renderRuleSlidesEditor(); return; }
+    const slideCard=btn.closest('.rule-slide-card'); if(!slideCard) return;
+    const si=Number(slideCard.dataset.si), slides=appData.ruleSlides, slide=slides[si];
+    const groupBlock=btn.closest('.rule-group-block'), gi=groupBlock?Number(groupBlock.dataset.gi):null;
+    if(act==='slide-up'){ [slides[si-1],slides[si]]=[slides[si],slides[si-1]]; renderRuleSlidesEditor(); }
+    else if(act==='slide-down'){ [slides[si+1],slides[si]]=[slides[si],slides[si+1]]; renderRuleSlidesEditor(); }
+    else if(act==='slide-del'){ if(confirm('このページを削除しますか？')){ slides.splice(si,1); renderRuleSlidesEditor(); } }
+    else if(act==='slide-img-remove'){ slide.img=null; renderRuleSlidesEditor(); }
+    else if(act==='group-add'){ slide.groups.push(''); renderRuleSlidesEditor(); }
+    else if(act==='group-up'){ [slide.groups[gi-1],slide.groups[gi]]=[slide.groups[gi],slide.groups[gi-1]]; renderRuleSlidesEditor(); }
+    else if(act==='group-down'){ [slide.groups[gi+1],slide.groups[gi]]=[slide.groups[gi],slide.groups[gi+1]]; renderRuleSlidesEditor(); }
+    else if(act==='group-del'){ slide.groups.splice(gi,1); renderRuleSlidesEditor(); }
+    else if(act==='group-ins-above'||act==='group-ins-below'){
+      const at = act==='group-ins-above' ? gi : gi+1;
+      slide.groups.splice(at,0,''); renderRuleSlidesEditor();
+      const el=document.querySelectorAll(`#rule-editor .rule-slide-card[data-si="${si}"] .rule-group-edit`)[at];
+      if(el) el.focus();
+    }
+    else if(act==='fmt'){
+      const editEl=groupBlock.querySelector('.rule-group-edit');
+      editEl.focus();
+      const cmd=btn.dataset.cmd;
+      if(cmd==='upsize') wrapSelectionBig();
+      else if(cmd==='colorclass') wrapSelectionClass(btn.dataset.val);
+      else document.execCommand(cmd, false, null);
+      slide.groups[gi]=editEl.innerHTML;
+    }
+  });
+  container.addEventListener('paste', e=>{
+    if(!e.target.closest('.rule-group-edit')) return;
+    e.preventDefault();
+    const text=(e.clipboardData||window.clipboardData).getData('text/plain');
+    document.execCommand('insertText', false, text);
+  });
+  container.addEventListener('input', e=>{
+    const editEl=e.target.closest('.rule-group-edit'); if(!editEl) return;
+    appData.ruleSlides[Number(editEl.closest('.rule-slide-card').dataset.si)].groups[Number(editEl.closest('.rule-group-block').dataset.gi)]=editEl.innerHTML;
+  });
+  container.addEventListener('change', async e=>{
+    if(e.target.dataset.ract!=='slide-img-input') return;
+    const si=Number(e.target.closest('.rule-slide-card').dataset.si), f=e.target.files[0]; if(!f) return;
+    appData.ruleSlides[si].img=await compressImageFile(f);
+    renderRuleSlidesEditor();
+  });
+}
+function wrapSelectionBig(){
+  const sel=window.getSelection(); if(!sel.rangeCount) return;
+  const range=sel.getRangeAt(0); if(range.collapsed) return;
+  const span=document.createElement('span'); span.style.fontSize='1.5em';
+  span.appendChild(range.extractContents()); range.insertNode(span);
+  const parent=span.parentNode;
+  if(parent && parent.classList && (parent.classList.contains('rule-red')||parent.classList.contains('rule-normal'))){
+    span.classList.add(parent.classList.contains('rule-red')?'rule-red':'rule-normal');
+    const others=Array.from(parent.childNodes).filter(n=>n!==span && !(n.nodeType===3 && n.textContent===''));
+    if(!others.length && parent.parentNode){ parent.parentNode.insertBefore(span, parent); parent.parentNode.removeChild(parent); }
+  }
+}
+function wrapSelectionClass(cls){
+  const sel=window.getSelection(); if(!sel.rangeCount) return;
+  const range=sel.getRangeAt(0); if(range.collapsed) return;
+  const frag=range.extractContents();
+  const strip=node=>{ if(node.nodeType===1){ if(node.classList){ node.classList.remove('rule-red','rule-normal'); if(!node.classList.length) node.removeAttribute('class'); } Array.from(node.childNodes).forEach(strip); } };
+  Array.from(frag.childNodes).forEach(strip);
+  const span=document.createElement('span'); span.className=cls;
+  span.appendChild(frag); range.insertNode(span);
+  let node=span;
+  while(node.parentNode && node.parentNode.classList && (node.parentNode.classList.contains('rule-red')||node.parentNode.classList.contains('rule-normal'))){
+    const parent=node.parentNode;
+    if(Array.from(parent.childNodes).some(n=>n!==node && !(n.nodeType===3 && n.textContent===''))) break;
+    const gp=parent.parentNode; if(!gp) break;
+    gp.insertBefore(node, parent); gp.removeChild(parent);
+  }
+}
+
+/* ---- お題登録・履歴・使用状況 ---- */
+function renderPool(){
+  const items=getItemList(), used=getUsed(), ex=getExcluded(), hist=getHistory().slice().reverse();
+  const usedCnt=items.filter(k=>used.has(k) && !ex.has(k)).length;
+  const exCnt=items.filter(k=>ex.has(k)).length;
+  const remain=items.length-usedCnt-exCnt;
+  document.getElementById('pool-area').innerHTML=`
+    <div class="card">
+      <h2>お題の登録</h2>
+      <p style="font-size:14px;margin-top:-4px">1行に1つずつ書いて（スプレッドシートの列をそのままコピーしてもOK）、「追加する」か「置き換える」を押してください。重複と空行は自動で除きます。</p>
+      <textarea id="items-input" rows="6" placeholder="動物&#10;果物&#10;スポーツ"></textarea>
+      <div class="row" style="margin-top:10px">
+        <button class="primary" data-act="additems">＋ 今のリストに追加する</button>
+        <button data-act="setitems">このリストに置き換える</button>
+        <span class="spacer"></span>
+        <button class="small ghost" data-act="defitems">初期のお題に戻す</button>
+      </div>
+      <h3 style="margin-top:18px">登録中のお題（${items.length}件）</h3>
+      <div class="row" style="margin-bottom:8px">
+        <input type="text" id="topic-filter" placeholder="🔍 お題を検索" style="max-width:280px" value="${esc(topicFilter)}">
+        <button class="small" data-act="checkall">表示中を全部チェック</button>
+        <button class="small ghost" data-act="uncheckall">チェックを外す</button>
+        <span class="spacer"></span>
+        <button class="small danger" data-act="delchecked">🗑 チェックしたお題を削除</button>
+      </div>
+      <div class="topic-list"><table><tbody id="topic-rows"></tbody></table></div>
+      <p class="muted" style="font-size:13px">「削除」はリストから消します。「除外」はリストに残したまま、ゲームで選ばれないようにします。</p>
+    </div>
+
+    <div class="card">
+      <h2>お題の使用状況</h2>
+      <div class="stats4">
+        <div class="stat"><div class="lbl">お題リスト</div><div class="val">${items.length}</div></div>
+        <div class="stat"><div class="lbl">使用済み</div><div class="val">${usedCnt}</div></div>
+        <div class="stat"><div class="lbl">未使用</div><div class="val" style="color:var(--accent)">${remain}</div></div>
+        <div class="stat"><div class="lbl">除外</div><div class="val">${exCnt}</div></div>
+      </div>
+      <p class="muted">一度出たお題は、すべてのお題が一度ずつ使われるまで出ません。ゲーム中に未使用がなくなった場合は自動でリセットします。</p>
+      <button class="danger" data-act="resetused">使用状況をリセット</button>
+    </div>
+
+    <div class="card">
+      <h2>プレイ記録</h2>
+      ${hist.length ? `<div class="table-wrap"><table><thead><tr><th>遊んだ日時</th><th>モード</th><th>記録</th><th>ランク</th><th>正解</th><th>お題変更</th><th>参加者</th><th></th></tr></thead><tbody>
+        ${hist.map(h=>`<tr>
+          <td style="white-space:nowrap">${fmtDate(h.at)}</td>
+          <td>${h.mode==='clear'?'<span class="tag mc">クリアまで</span>':`<span class="tag m5">${esc(fmtDuration(h.ms).replace(/00秒$/,'').replace(/^0分/,''))}</span>`}</td>
+          <td style="white-space:nowrap"><b>${h.mode==='clear' ? (h.reason==='clear' ? esc(fmtDuration(h.ms)) : `<span class="tag fail">途中終了</span> ${h.blue}文字`) : `${h.blue}文字`}</b><span class="muted"> / ${KANA.length}</span></td>
+          <td>${h.rank?esc(h.rank):'—'}</td>
+          <td style="white-space:nowrap">${h.solved}回</td>
+          <td style="white-space:nowrap">${h.passes}回</td>
+          <td style="font-size:13px">${h.playerCount?`${h.playerCount}人：`:''}${esc(h.players||'')}
+            ${(h.answers||[]).length?`<details><summary class="muted">正解した言葉</summary>${h.answers.map(esc).join('<br>')}</details>`:''}</td>
+          <td><button class="small ghost" data-act="delhist" data-id="${esc(h.id)}">削除</button></td></tr>`).join('')}
+      </tbody></table></div>
+      <div class="row" style="margin-top:10px"><span class="spacer"></span><button class="small danger" data-act="clearhist">記録をすべて削除</button></div>`
+      : '<p class="muted">まだ記録がありません。</p>'}
+    </div>
+
+    <div class="card">
+      <h2>データの引き継ぎ</h2>
+      <p class="muted" style="margin-top:-6px">メモ・ゲーム設定・ランク・ルール説明（画像含む）・お題・除外・使用状況・記録をJSONファイルで書き出し／読み込みできます。</p>
+      <div class="row">
+        <button data-act="export">⬇ JSON書き出し</button>
+        <button data-act="import">⬆ JSON読み込み</button>
+        <input type="file" id="import-file" accept=".json,application/json" style="display:none">
+      </div>
+    </div>`;
+  document.getElementById('import-file').onchange=onImportFile;
+  renderTopicList();
+}
+function renderTopicList(){
+  const tb=document.getElementById('topic-rows'); if(!tb) return;
+  const items=getItemList(), used=getUsed(), ex=getExcluded();
+  const f=topicFilter.trim();
+  const list=items.filter(w=>!f || w.includes(f));
+  tb.innerHTML = list.length ? list.map(w=>`<tr>
+    <td style="width:32px"><input type="checkbox" class="t-chk" data-k="${esc(w)}"></td>
+    <td style="font-weight:700">${esc(w)} ${ex.has(w)?'<span class="tag fail">除外</span>':used.has(w)?'<span class="muted" style="font-size:12px">（使用済み）</span>':''}</td>
+    <td style="text-align:right;white-space:nowrap">${ex.has(w)?`<button class="small ghost" data-act="unex" data-k="${esc(w)}">除外を解除</button>`:`<button class="small ghost" data-act="ex" data-k="${esc(w)}">除外</button>`}
+      <button class="small ghost" data-act="deltopic" data-k="${esc(w)}">🗑 削除</button></td></tr>`).join('')
+    : `<tr><td class="muted">${f?'見つかりません':'お題がありません'}</td></tr>`;
+}
+function unuseWords(entries){
+  const used=getUsed();
+  entries.forEach(h=>(h.words||[]).forEach(w=>used.delete(w)));
+  setUsed(used);
+}
+function deleteTopics(keys){
+  const del=new Set(keys);
+  setItemList(getItemList().filter(w=>!del.has(w)));
+  const ex=getExcluded(); keys.forEach(k=>ex.delete(k)); setExcluded(ex);
+  const u=getUsed(); keys.forEach(k=>u.delete(k)); setUsed(u);
+  renderPool();
+}
+function readItemsInput(){
+  return cleanList(document.getElementById('items-input').value.split(/\r?\n/));
+}
+function onAdminClick(e){
+  const b=e.target.closest('[data-act]'); if(!b || b.disabled) return;
+  const act=b.dataset.act;
+  if(act==='tohost') location.href=location.pathname;
+  else if(act==='save') saveAdmin(false);
+  else if(act==='save-go') saveAdmin(true);
+  else if(act==='rank-add'){ readRankRows(); const last=adminRanks[adminRanks.length-1]; adminRanks.push({name:'', min:(last&&!isNaN(last.min)?last.min+1:0), sec:(last&&last.sec?Math.max(30,last.sec-60):300)}); renderRankRows(); updateSettingsPreview(); }
+  else if(act==='rank-del'){ readRankRows(); adminRanks.splice(Number(b.dataset.i),1); if(adminRanks[0]) adminRanks[0].sec=null; renderRankRows(); updateSettingsPreview(); }
+  else if(act==='rank-up'||act==='rank-down'){
+    readRankRows(); const i=Number(b.dataset.i), j=act==='rank-up'?i-1:i+1;
+    // 名前だけ入れ替える（文字数・時間の基準は位置に残す）
+    [adminRanks[i].name, adminRanks[j].name]=[adminRanks[j].name, adminRanks[i].name];
+    renderRankRows(); updateSettingsPreview();
+  }
+  else if(act==='additems'){
+    const add=readItemsInput(); if(!add.length){ alert('お題を入力してください'); return; }
+    const cur=getItemList(), set=new Set(cur), fresh=add.filter(w=>!set.has(w));
+    setItemList(cur.concat(fresh)); document.getElementById('items-input').value='';
+    renderPool(); showToast(`${fresh.length}件追加しました${add.length>fresh.length?`（登録済みの${add.length-fresh.length}件は除きました）`:''}`);
+  }
+  else if(act==='setitems'){
+    const list=readItemsInput(); if(!list.length){ alert('お題を入力してください'); return; }
+    if(!confirm(`今のお題（${getItemList().length}件）を消して、入力した${list.length}件に置き換えますか？`)) return;
+    setItemList(list); document.getElementById('items-input').value=''; renderPool();
+  }
+  else if(act==='defitems'){ if(!confirm(`初期のお題（${DEFAULT_ITEMS.length}件）に戻しますか？\n（今登録しているお題は消えます）`)) return; localStorage.removeItem(LS.items); renderPool(); }
+  else if(act==='checkall') document.querySelectorAll('.t-chk').forEach(c=>c.checked=true);
+  else if(act==='uncheckall') document.querySelectorAll('.t-chk').forEach(c=>c.checked=false);
+  else if(act==='delchecked'){
+    const keys=[...document.querySelectorAll('.t-chk:checked')].map(c=>c.dataset.k);
+    if(!keys.length){ alert('削除するお題にチェックを入れてください'); return; }
+    if(!confirm(`チェックした${keys.length}件のお題を削除しますか？`)) return;
+    deleteTopics(keys);
+  }
+  else if(act==='deltopic'){ if(confirm(`「${b.dataset.k}」を削除しますか？`)) deleteTopics([b.dataset.k]); }
+  else if(act==='ex'){ const s=getExcluded(); s.add(b.dataset.k); setExcluded(s); renderPool(); }
+  else if(act==='unex'){ const s=getExcluded(); s.delete(b.dataset.k); setExcluded(s); renderPool(); }
+  else if(act==='delhist'){
+    if(!confirm('この記録を削除しますか？\n（この回で出たお題は「未使用」に戻ります）')) return;
+    const all=getHistory();
+    unuseWords(all.filter(h=>h.id===b.dataset.id));
+    setHistory(all.filter(h=>h.id!==b.dataset.id)); renderPool();
+  }
+  else if(act==='clearhist'){
+    if(!confirm('プレイ記録をすべて削除しますか？（元に戻せません）\n（記録に残っている回で出たお題は「未使用」に戻ります）')) return;
+    unuseWords(getHistory()); setHistory([]); renderPool();
+  }
+  else if(act==='resetused'){ if(!confirm('お題の使用状況をリセットしますか？\n（除外したお題はそのままです）')) return; setUsed(new Set()); renderPool(); }
+  else if(act==='export'){
+    const data={app:'odaikaruta', version:1, exportedAt:new Date().toISOString(), appData,
+      items:lsGet(LS.items,null), used:lsGet(LS.used,[]), excluded:lsGet(LS.excluded,[]), history:lsGet(LS.history,[])};
+    const blob=new Blob([JSON.stringify(data,null,1)], {type:'application/json'});
+    const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
+    const d=new Date(); a.download=`odaikaruta_${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}.json`;
+    a.click(); setTimeout(()=>URL.revokeObjectURL(a.href), 1000);
+  }
+  else if(act==='import') document.getElementById('import-file').click();
+}
+function onImportFile(e){
+  const f=e.target.files[0]; if(!f) return;
+  const rd=new FileReader();
+  rd.onload=async ()=>{
+    try{
+      const d=JSON.parse(rd.result);
+      if(d.app!=='odaikaruta') throw new Error('format');
+      if(!confirm('読み込んだデータで、今のデータ（設定・ルール説明・お題・除外・使用状況・記録）を上書きしますか？')) return;
+      if(d.appData) await idbSet(mergeAppData(d.appData));
+      if(Array.isArray(d.items)) lsSet(LS.items, d.items); else localStorage.removeItem(LS.items);
+      lsSet(LS.used, Array.isArray(d.used)?d.used:[]);
+      lsSet(LS.excluded, Array.isArray(d.excluded)?d.excluded:[]);
+      lsSet(LS.history, Array.isArray(d.history)?d.history:[]);
+      alert('読み込みました'); location.reload();
+    }catch(err){ alert('このファイルは読み込めませんでした'); }
+  };
+  rd.readAsText(f);
+  e.target.value='';
+}
+
+/* ---------- 起動 ---------- */
+if(MODE==='admin') initAdmin();
+else if(MODE==='sub') initSub();
+else initHost();
+</script>
+</body>
+</html>
