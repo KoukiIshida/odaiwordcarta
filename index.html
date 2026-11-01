@@ -403,7 +403,7 @@ function pickItem(onBoard, ask){
 let gs=null, peer=null, myHostId=null;
 const conns={};
 const connected=new Set();
-let tickTimer=null, audioCtx=null, hostActionLockAt=0;
+let tickTimer=null, audioCtx=null, hostActionLockAt=0, dummyPanelOpen=false;
 
 function freshState(){
   return { phase:'lobby', players:{}, order:[], mode:lsGet(LS.mode,'timed')==='clear'?'clear':'timed',
@@ -438,6 +438,7 @@ async function initHost(){
     startPeer(null, 0);
   }
   document.getElementById('app').addEventListener('click', onHostClick);
+  document.getElementById("app").addEventListener("toggle", e=>{ if(e.target.id==="dummy-panel") dummyPanelOpen=e.target.open; }, true);
   document.addEventListener('keydown', onHostKey);
   tickTimer=setInterval(tickHost, 200);
   renderHost();
@@ -845,8 +846,8 @@ function renderHost(){
       <div>
         <div class="card">${timerHtml}
           <div class="blue-count">青いカード <b>${gs.blue.length}</b> / ${KANA.length}</div></div>
-        <div class="card">${boardHtml(gs.layout, gs.blue, hasDummy)}
-          ${hasDummy?'<p class="muted" style="font-size:12px;margin:8px 0 0">🧪 カードをクリックするとダミーが置きます（リハーサル用）</p>':''}</div>
+        ${hasDummy?`<div class="card"><details id="dummy-panel" ${dummyPanelOpen?"open":""}><summary class="muted" style="cursor:pointer">🧪 ダミーで文字を置く（リハーサル用）</summary>
+          <p class="muted" style="font-size:12px;margin:6px 0">五十音順です（スマホの配置とは別）。クリックするとダミーが置きます</p>${boardHtml(KANA, [], true)}</details></div>`:''}
         ${gs.solved.length?`<div class="card"><h3>正解した言葉（${gs.solved.length}）</h3><div class="solved">${gs.solved.slice().reverse().map(x=>`<div>${esc(x.word)} <span class="muted">（${esc(x.topic)}）</span></div>`).join('')}</div></div>`:''}
       </div>
     </div>`;
@@ -866,11 +867,8 @@ function renderHost(){
            ${ranks.map((r,i)=>({r,i})).reverse().map(({r,i})=>`<tr><td class="${i===f.rankIdx?'hit':''}">${esc(r.name)}</td><td class="${i===f.rankIdx?'hit':''}">${esc(f.mode==='timed'?rankCountRange(ranks,i):rankTimeRange(ranks,i))}</td></tr>`).join('')}
          </tbody></table></div>`;
     body=`${head}${rankPart}
-      <div class="play" style="margin-top:14px">
-        <div class="card"><h3>正解した言葉（${gs.solved.length}）・お題変更 ${gs.passes.length}回</h3>
-          <div class="solved" style="max-height:none">${gs.solved.map(x=>`<div>⭕ ${esc(x.word)} <span class="muted">（${esc(x.topic)}・+${x.added}文字）</span></div>`).join('')||'<p class="muted">なし</p>'}</div></div>
-        <div class="card">${boardHtml(gs.layout, gs.blue, false)}</div>
-      </div>
+      <div class="card" style="margin-top:14px"><h3>正解した言葉（${gs.solved.length}）・お題変更 ${gs.passes.length}回</h3>
+        <div class="solved" style="max-height:none">${gs.solved.map(x=>`<div>⭕ ${esc(x.word)} <span class="muted">（${esc(x.topic)}・+${x.added}文字）</span></div>`).join('')||'<p class="muted">なし</p>'}</div></div>
       ${f.rankIdx==null||gs.finalStep>=1?`<div style="text-align:center;margin:16px 0"><button class="primary big" data-act="again">🔁 もう一度遊ぶ（同じメンバー）</button></div>`:''}`;
   }
   app.innerHTML=`<div class="page">${hostTopbar()}${body}</div>`;
