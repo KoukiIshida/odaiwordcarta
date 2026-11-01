@@ -1357,6 +1357,7 @@ function renderTopicList(){
     <td style="width:32px"><input type="checkbox" class="t-chk" data-k="${esc(w)}"></td>
     <td style="font-weight:700">${esc(w)} ${ex.has(w)?'<span class="tag fail">除外</span>':used.has(w)?'<span class="muted" style="font-size:12px">（使用済み）</span>':''}</td>
     <td style="text-align:right;white-space:nowrap">${ex.has(w)?`<button class="small ghost" data-act="unex" data-k="${esc(w)}">除外を解除</button>`:`<button class="small ghost" data-act="ex" data-k="${esc(w)}">除外</button>`}
+      <button class="small ghost" data-act="edittopic" data-k="${esc(w)}">✏ 編集</button>
       <button class="small ghost" data-act="deltopic" data-k="${esc(w)}">🗑 削除</button></td></tr>`).join('')
     : `<tr><td class="muted">${f?'見つかりません':'お題がありません'}</td></tr>`;
 }
@@ -1371,6 +1372,19 @@ function deleteTopics(keys){
   const ex=getExcluded(); keys.forEach(k=>ex.delete(k)); setExcluded(ex);
   const u=getUsed(); keys.forEach(k=>u.delete(k)); setUsed(u);
   renderPool();
+}
+/** お題の文言を変える（使用済み・除外の状態は引き継ぐ） */
+function editTopic(oldW){
+  const v=prompt('お題の文言を編集してください', oldW);
+  if(v==null) return;
+  const w=v.split('	')[0].trim();
+  if(!w || w===oldW) return;
+  const list=getItemList();
+  if(list.includes(w)){ alert(`「${w}」はすでに登録されています`); return; }
+  setItemList(list.map(x=>x===oldW?w:x));
+  const ex=getExcluded(); if(ex.delete(oldW)){ ex.add(w); setExcluded(ex); }
+  const u=getUsed(); if(u.delete(oldW)){ u.add(w); setUsed(u); }
+  renderPool(); showToast('お題を編集しました');
 }
 function readItemsInput(){
   return cleanList(document.getElementById('items-input').value.split(/\r?\n/));
@@ -1409,6 +1423,7 @@ function onAdminClick(e){
     if(!confirm(`チェックした${keys.length}件のお題を削除しますか？`)) return;
     deleteTopics(keys);
   }
+  else if(act==='edittopic') editTopic(b.dataset.k);
   else if(act==='deltopic'){ if(confirm(`「${b.dataset.k}」を削除しますか？`)) deleteTopics([b.dataset.k]); }
   else if(act==='ex'){ const s=getExcluded(); s.add(b.dataset.k); setExcluded(s); renderPool(); }
   else if(act==='unex'){ const s=getExcluded(); s.delete(b.dataset.k); setExcluded(s); renderPool(); }
