@@ -523,6 +523,7 @@ function placeLetter(pid, ch, v, answerId){
   if(tapsOf(pid)>=TAPS_PER_PLAYER) return `この答えでは、もう${TAPS_PER_PLAYER}回タップしました`;
   if(gs.answer.slots.length>=maxLetters()) return `最大${maxLetters()}文字までです`;
   gs.answer.slots.push({ch, v: ch==='ー' ? v : null, pid});
+  if(gs.answer.slots.length===1) pon();   // 誰かが1文字目を置いたらホストで音を鳴らす
   commit();
   return null;
 }
@@ -625,6 +626,17 @@ function playAgain(){
 }
 
 /* ----- タイマー（画面全体は描き直さず数字だけ更新） ----- */
+/** 1文字目が置かれた時の「ぽん」という音 */
+function pon(){
+  try{
+    audioCtx=audioCtx||new (window.AudioContext||window.webkitAudioContext)();
+    if(audioCtx.state==='suspended') audioCtx.resume();
+    const o=audioCtx.createOscillator(), g=audioCtx.createGain(), t=audioCtx.currentTime;
+    o.type='sine'; o.frequency.setValueAtTime(880,t); o.frequency.exponentialRampToValueAtTime(440,t+0.12);
+    g.gain.setValueAtTime(0.0001,t); g.gain.exponentialRampToValueAtTime(0.5,t+0.01); g.gain.exponentialRampToValueAtTime(0.001,t+0.25);
+    o.connect(g); g.connect(audioCtx.destination); o.start(t); o.stop(t+0.26);
+  }catch(e){}
+}
 function beep(){
   try{
     audioCtx=audioCtx||new (window.AudioContext||window.webkitAudioContext)();
